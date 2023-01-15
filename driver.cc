@@ -7,13 +7,14 @@ Value *LogErrorV(const std::string Str) {
 }
 
 /*************************** Driver class *************************/
-driver::driver(): trace_parsing (false), trace_scanning (false), ast_print (false) {
+driver::driver()
+    : trace_parsing(false), trace_scanning(false), ast_print(false) {
   context = new LLVMContext;
   module = new Module("Kaleidoscope", *context);
   builder = new IRBuilder(*context);
 };
 
-int driver::parse (const std::string &f) {
+int driver::parse(const std::string &f) {
   file = f;
   location.initialize(&file);
   scan_begin();
@@ -25,41 +26,38 @@ int driver::parse (const std::string &f) {
 }
 
 void driver::codegen() {
-  if (ast_print) root->visit();
+  if (ast_print)
+    root->visit();
   std::cout << std::endl;
   root->codegen(*this);
 };
 
 /********************** Handle Top Expressions ********************/
-Value* TopExpression(ExprAST* E, driver& drv) {
+Value *TopExpression(ExprAST *E, driver &drv) {
   // Crea una funzione anonima anonima il cui body è un'espressione top-level
   // viene "racchiusa" un'espressione top-level
   E->toggle(); // Evita la doppia emissione del prototipo
-  PrototypeAST *Proto = new PrototypeAST("__espr_anonima"+std::to_string(++drv.Cnt),
-		  std::vector<std::string>());
+  PrototypeAST *Proto = new PrototypeAST(
+      "__espr_anonima" + std::to_string(++drv.Cnt), std::vector<std::string>());
   Proto->noemit();
-  FunctionAST *F = new FunctionAST(std::move(Proto),E);
+  FunctionAST *F = new FunctionAST(std::move(Proto), E);
   auto *FnIR = F->codegen(drv);
   FnIR->eraseFromParent();
   return nullptr;
 };
 
 /************************ Expression tree *************************/
-  // Inverte il flag che definisce le TopLevelExpression
-  // ando viene chiamata
-void ExprAST::toggle() {
-  top = top ? false : true;
-};
+// Inverte il flag che definisce le TopLevelExpression
+// ando viene chiamata
+void ExprAST::toggle() { top = top ? false : true; };
 
-bool ExprAST::gettop() {
-  return top;
-};
+bool ExprAST::gettop() { return top; };
 
 /************************* Sequence tree **************************/
-SeqAST::SeqAST(RootAST* first, RootAST* continuation):
-  first(first), continuation(continuation) {};
+SeqAST::SeqAST(RootAST *first, RootAST *continuation)
+    : first(first), continuation(continuation){};
 
-void SeqAST:: visit() {
+void SeqAST::visit() {
   if (first != nullptr) {
     first->visit();
   } else {
@@ -71,94 +69,99 @@ void SeqAST:: visit() {
   continuation->visit();
 };
 
-Value *SeqAST::codegen(driver& drv) {
+Value *SeqAST::codegen(driver &drv) {
   if (first != nullptr) {
     Value *f = first->codegen(drv);
   } else {
-    if (continuation == nullptr) return nullptr;
+    if (continuation == nullptr)
+      return nullptr;
   }
   Value *c = continuation->codegen(drv);
   return nullptr;
 };
 
 /********************* Number Expression Tree *********************/
-NumberExprAST::NumberExprAST(double Val): Val(Val) { top = false; };
-void NumberExprAST::visit() {
-  std::cout << Val << " ";
-};
+NumberExprAST::NumberExprAST(double Val) : Val(Val) { top = false; };
+void NumberExprAST::visit() { std::cout << Val << " "; };
 
-Value *NumberExprAST::codegen(driver& drv) {  
-  if (gettop()) return TopExpression(this, drv);
-  else return ConstantFP::get(*drv.context, APFloat(Val));
+Value *NumberExprAST::codegen(driver &drv) {
+  if (gettop())
+    return TopExpression(this, drv);
+  else
+    return ConstantFP::get(*drv.context, APFloat(Val));
 };
 
 /****************** Variable Expression TreeAST *******************/
-VariableExprAST::VariableExprAST(std::string &Name):
-  Name(Name) { top = false; };
-
-const std::string& VariableExprAST::getName() const {
-  return Name;
+VariableExprAST::VariableExprAST(std::string &Name) : Name(Name) {
+  top = false;
 };
 
-void VariableExprAST::visit() {
-  std::cout << getName() << " ";
-};
+const std::string &VariableExprAST::getName() const { return Name; };
 
-Value *VariableExprAST::codegen(driver& drv) {
+void VariableExprAST::visit() { std::cout << getName() << " "; };
+
+Value *VariableExprAST::codegen(driver &drv) {
   if (gettop()) {
     return TopExpression(this, drv);
   } else {
     Value *V = drv.NamedValues[Name];
-    if (!V) LogErrorV("Variabile non definita");
+    if (!V)
+      LogErrorV("Variabile non definita");
     return V;
   }
 };
 
 /******************** Binary Expression Tree **********************/
-BinaryExprAST::BinaryExprAST(char Op, ExprAST* LHS, ExprAST* RHS):
-  Op(Op), LHS(LHS), RHS(RHS) { top = false; };
- 
+BinaryExprAST::BinaryExprAST(char Op, ExprAST *LHS, ExprAST *RHS)
+    : Op(Op), LHS(LHS), RHS(RHS) {
+  top = false;
+};
+
 void BinaryExprAST::visit() {
   std::cout << "(" << Op << " ";
   LHS->visit();
-  if (RHS!=nullptr) RHS->visit();
+  if (RHS != nullptr)
+    RHS->visit();
   std::cout << ")";
 };
 
-Value *BinaryExprAST::codegen(driver& drv) {
+Value *BinaryExprAST::codegen(driver &drv) {
   if (gettop()) {
     return TopExpression(this, drv);
   } else {
     Value *L = LHS->codegen(drv);
     Value *R = RHS->codegen(drv);
-    if (!L || !R) return nullptr;
+    if (!L || !R)
+      return nullptr;
     switch (Op) {
     case '+':
-      return drv.builder->CreateFAdd(L,R,"addregister");
+      return drv.builder->CreateFAdd(L, R, "addregister");
     case '-':
-      return drv.builder->CreateFSub(L,R,"subregister");
+      return drv.builder->CreateFSub(L, R, "subregister");
     case '*':
-      return drv.builder->CreateFMul(L,R,"mulregister");
+      return drv.builder->CreateFMul(L, R, "mulregister");
     case '/':
-      return drv.builder->CreateFDiv(L,R,"addregister");
-    default:  
+      return drv.builder->CreateFDiv(L, R, "addregister");
+    default:
       return LogErrorV("Operatore binario non supportato");
     }
   }
 };
 
 /********************* Call Expression Tree ***********************/
-CallExprAST::CallExprAST(std::string Callee, std::vector<ExprAST*> Args): Callee(Callee),
-									  Args(std::move(Args)) { top = false; };
+CallExprAST::CallExprAST(std::string Callee, std::vector<ExprAST *> Args)
+    : Callee(Callee), Args(std::move(Args)) {
+  top = false;
+};
 void CallExprAST::visit() {
   std::cout << Callee << "( ";
-  for (ExprAST* arg : Args) {
+  for (ExprAST *arg : Args) {
     arg->visit();
   };
   std::cout << ')';
 };
 
-Value *CallExprAST::codegen(driver& drv) {
+Value *CallExprAST::codegen(driver &drv) {
   if (gettop()) {
     return TopExpression(this, drv);
   } else {
@@ -173,20 +176,22 @@ Value *CallExprAST::codegen(driver& drv) {
     for (auto arg : Args) {
       ArgsV.push_back(arg->codegen(drv));
       if (!ArgsV.back())
-	return nullptr;
+        return nullptr;
     }
     return drv.builder->CreateCall(CalleeF, ArgsV, "calltmp");
   }
 }
 
 /************************* Prototype Tree *************************/
-PrototypeAST::PrototypeAST(std::string Name, std::vector<std::string> Args): Name(Name),
-									     Args(std::move(Args)) { emit = true; };
-const std::string& PrototypeAST::getName() const { return Name; };
-const std::vector<std::string>& PrototypeAST::getArgs() const { return Args; };
+PrototypeAST::PrototypeAST(std::string Name, std::vector<std::string> Args)
+    : Name(Name), Args(std::move(Args)) {
+  emit = true;
+};
+const std::string &PrototypeAST::getName() const { return Name; };
+const std::vector<std::string> &PrototypeAST::getArgs() const { return Args; };
 void PrototypeAST::visit() {
   std::cout << "extern " << getName() << "( ";
-  for (auto it=getArgs().begin(); it!= getArgs().end(); ++it) {
+  for (auto it = getArgs().begin(); it != getArgs().end(); ++it) {
     std::cout << *it << ' ';
   };
   std::cout << ')';
@@ -196,57 +201,61 @@ void PrototypeAST::noemit() { emit = false; };
 
 bool PrototypeAST::emitp() { return emit; };
 
-Function *PrototypeAST::codegen(driver& drv) {
-  // Costruisce una struttura double(double,...,double) che descrive 
+Function *PrototypeAST::codegen(driver &drv) {
+  // Costruisce una struttura double(double,...,double) che descrive
   // tipo di ritorno e tipo dei parametri (in Kaleidoscope solo double)
-  std::vector<Type*> Doubles(Args.size(), Type::getDoubleTy(*drv.context));
+  std::vector<Type *> Doubles(Args.size(), Type::getDoubleTy(*drv.context));
   FunctionType *FT =
       FunctionType::get(Type::getDoubleTy(*drv.context), Doubles, false);
   Function *F =
       Function::Create(FT, Function::ExternalLinkage, Name, *drv.module);
 
-  // Attribuiamo agli argomenti il nome dei parametri formali specificati dal programmatore
+  // Attribuiamo agli argomenti il nome dei parametri formali specificati dal
+  // programmatore
   unsigned Idx = 0;
   for (auto &Arg : F->args())
     Arg.setName(Args[Idx++]);
 
-  if (emitp()) {  // emitp() restituisce true se e solo se il prototipo è definito extern
+  if (emitp()) { // emitp() restituisce true se e solo se il prototipo è
+                 // definito extern
     F->print(errs());
     fprintf(stderr, "\n");
   };
-  
+
   return F;
 }
 
 /************************* Function Tree **************************/
-FunctionAST::FunctionAST(PrototypeAST* Proto, ExprAST* Body):
-  Proto(Proto), Body(Body) {
-  if (Body == nullptr) external=true;
-  else external=false;
+FunctionAST::FunctionAST(PrototypeAST *Proto, ExprAST *Body)
+    : Proto(Proto), Body(Body) {
+  if (Body == nullptr)
+    external = true;
+  else
+    external = false;
 };
 
 void FunctionAST::visit() {
   std::cout << Proto->getName() << "( ";
-  for (auto it=Proto->getArgs().begin(); it!= Proto->getArgs().end(); ++it) {
+  for (auto it = Proto->getArgs().begin(); it != Proto->getArgs().end(); ++it) {
     std::cout << *it << ' ';
   };
   std::cout << ')';
   Body->visit();
 };
 
-Function *FunctionAST::codegen(driver& drv) {
+Function *FunctionAST::codegen(driver &drv) {
   // Verifica che non esiste già, nel contesto, una funzione con lo stesso nome
   std::string name = Proto->getName();
   Function *TheFunction = drv.module->getFunction(name);
   // E se non esiste prova a definirla
   if (TheFunction) {
-    LogErrorV("Funzione "+name+" già definita");
+    LogErrorV("Funzione " + name + " già definita");
     return nullptr;
   }
   if (!TheFunction)
     TheFunction = Proto->codegen(drv);
   if (!TheFunction)
-    return nullptr;  // Se la definizione "fallisce" restituisce nullptr
+    return nullptr; // Se la definizione "fallisce" restituisce nullptr
 
   // Crea un blocco di base in cui iniziare a inserire il codice
   BasicBlock *BB = BasicBlock::Create(*drv.context, "entry", TheFunction);

@@ -1,0 +1,5 @@
+BasedOnStyle: LLVM
+LineNeding: LF
+PointerAlignment: Left
+Standard: c++20
+UseTab: Never

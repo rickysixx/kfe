@@ -1,0 +1,5 @@
+*.o
+kfe
+parser.cc
+parser.hh
+scanner.cc
