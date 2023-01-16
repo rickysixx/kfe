@@ -1,5 +1,11 @@
 BasedOnStyle: LLVM
-LineNeding: LF
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterClass: true
+  AfterFunction: true
+ColumnLimit: 0
+IndentExternBlock: Indent
+IndentWidth: 4
 PointerAlignment: Left
-Standard: c++20
+Standard: c++17
 UseTab: Never

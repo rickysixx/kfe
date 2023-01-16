@@ -1,11 +1,11 @@
 %{ /* -*- C++ -*- */
-# include <cerrno>
-# include <climits>
-# include <cstdlib>
-# include <string>
-# include <cmath>
-# include "driver.hh"
-# include "parser.hh"
+#include <cerrno>
+#include <climits>
+#include <cstdlib>
+#include <string>
+#include <cmath>
+#include "driver.hh"
+#include "parser.hh"
 
 // Work around an incompatibility in flex (at least versions
 // 2.5.31 through 2.5.33): it generates code that does
@@ -49,10 +49,16 @@ blank   [ \t]
 "+"      return yy::parser::make_PLUS      (loc);
 "*"      return yy::parser::make_STAR      (loc);
 "/"      return yy::parser::make_SLASH     (loc);
+"<"      return yy::parser::make_LT        (loc);
+">"      return yy::parser::make_GT        (loc);
 "("      return yy::parser::make_LPAREN    (loc);
 ")"      return yy::parser::make_RPAREN    (loc);
 ";"      return yy::parser::make_SEMICOLON (loc);
 ","      return yy::parser::make_COMMA     (loc);
+"if"     return yy::parser::make_IF        (loc);
+"then"   return yy::parser::make_THEN      (loc);
+"else"   return yy::parser::make_ELSE      (loc);
+"fi"     return yy::parser::make_FI       (loc);
 
 {num}      {
   errno = 0;
@@ -92,8 +98,7 @@ void driver::scan_begin ()
     }
 }
 
-void
-driver::scan_end ()
+void driver::scan_end()
 {
-  fclose (yyin);
+    fclose(yyin);
 }
