@@ -1,8 +1,28 @@
 #include "driver.hh"
+#include "operator.hh"
 #include "parser.hh"
+#include <llvm/ADT/APFloat.h>
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Operator.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IR/Use.h>
+#include <llvm/Support/raw_ostream.h>
+#include <memory>
+
+using llvm::APFloat;
+using llvm::BasicBlock;
+using llvm::ConstantFP;
+using llvm::errs;
+using llvm::Function;
+using llvm::FunctionType;
+using llvm::PHINode;
+using llvm::Type;
+using llvm::Value;
 
 Value* LogErrorV(const std::string Str)
 {
@@ -11,12 +31,12 @@ Value* LogErrorV(const std::string Str)
 }
 
 /*************************** Driver class *************************/
-driver::driver()
-    : trace_parsing(false), trace_scanning(false), ast_print(false)
+driver::driver() :
+    trace_parsing(false), trace_scanning(false), ast_print(false)
 {
-    context = new LLVMContext;
-    module = new Module("Kaleidoscope", *context);
-    builder = new IRBuilder<>(*context);
+    context = new llvm::LLVMContext;
+    module = new llvm::Module("Kaleidoscope", *context);
+    builder = new llvm::IRBuilder<>(*context);
 };
 
 int driver::parse(const std::string& f)
@@ -40,7 +60,7 @@ void driver::codegen()
 };
 
 /********************** Handle Top Expressions ********************/
-Value* TopExpression(ExprAST* E, driver& drv)
+llvm::Value* TopExpression(ExprAST* E, driver& drv)
 {
     // Crea una funzione anonima anonima il cui body è un'espressione top-level
     // viene "racchiusa" un'espressione top-level
@@ -62,8 +82,8 @@ void ExprAST::toggle() { top = top ? false : true; };
 bool ExprAST::gettop() { return top; };
 
 /************************* Sequence tree **************************/
-SeqAST::SeqAST(RootAST* first, RootAST* continuation)
-    : first(first), continuation(continuation){};
+SeqAST::SeqAST(RootAST* first, RootAST* continuation) :
+    first(first), continuation(continuation){};
 
 void SeqAST::visit()
 {
@@ -78,32 +98,34 @@ void SeqAST::visit()
     continuation->visit();
 };
 
-Value* SeqAST::codegen(driver& drv)
+llvm::Value* SeqAST::codegen(driver& drv)
 {
     if (first != nullptr) {
-        Value* f = first->codegen(drv);
+        llvm::Value* f = first->codegen(drv);
     } else {
         if (continuation == nullptr)
             return nullptr;
     }
-    Value* c = continuation->codegen(drv);
+    llvm::Value* c = continuation->codegen(drv);
     return nullptr;
 };
 
 /********************* Number Expression Tree *********************/
-NumberExprAST::NumberExprAST(double Val) : Val(Val) { top = false; };
+NumberExprAST::NumberExprAST(double Val) :
+    Val(Val) { top = false; };
 void NumberExprAST::visit() { std::cout << Val << " "; };
 
-Value* NumberExprAST::codegen(driver& drv)
+llvm::Value* NumberExprAST::codegen(driver& drv)
 {
     if (gettop())
         return TopExpression(this, drv);
     else
-        return ConstantFP::get(*drv.context, APFloat(Val));
+        return llvm::ConstantFP::get(*drv.context, llvm::APFloat(Val));
 };
 
 /****************** Variable Expression TreeAST *******************/
-VariableExprAST::VariableExprAST(std::string& Name) : Name(Name)
+VariableExprAST::VariableExprAST(std::string& Name) :
+    Name(Name)
 {
     top = false;
 };
@@ -112,12 +134,12 @@ const std::string& VariableExprAST::getName() const { return Name; };
 
 void VariableExprAST::visit() { std::cout << getName() << " "; };
 
-Value* VariableExprAST::codegen(driver& drv)
+llvm::Value* VariableExprAST::codegen(driver& drv)
 {
     if (gettop()) {
         return TopExpression(this, drv);
     } else {
-        Value* V = drv.NamedValues[Name];
+        llvm::Value* V = drv.NamedValues[Name];
         if (!V)
             LogErrorV("Variabile non definita");
         return V;
@@ -125,11 +147,11 @@ Value* VariableExprAST::codegen(driver& drv)
 };
 
 /******************** Binary Expression Tree **********************/
-BinaryExprAST::BinaryExprAST(char Op, ExprAST* LHS, ExprAST* RHS)
-    : Op(Op), LHS(LHS), RHS(RHS)
+BinaryExprAST::BinaryExprAST(Operator Op, ExprAST* LHS, ExprAST* RHS) :
+    Op(Op), LHS(LHS), RHS(RHS)
 {
     top = false;
-};
+}
 
 void BinaryExprAST::visit()
 {
@@ -138,41 +160,70 @@ void BinaryExprAST::visit()
     if (RHS != nullptr)
         RHS->visit();
     std::cout << ")";
-};
+}
 
-Value* BinaryExprAST::codegen(driver& drv)
+llvm::Value* BinaryExprAST::codegen(driver& drv)
 {
     if (gettop()) {
         return TopExpression(this, drv);
     } else {
-        Value* L = LHS->codegen(drv);
-        Value* R = RHS->codegen(drv);
+        llvm::Value* L = LHS->codegen(drv);
+        llvm::Value* R = RHS->codegen(drv);
         if (!L || !R)
             return nullptr;
         switch (Op) {
-        case '+':
-            return drv.builder->CreateFAdd(L, R, "addregister");
-        case '-':
-            return drv.builder->CreateFSub(L, R, "subregister");
-        case '*':
-            return drv.builder->CreateFMul(L, R, "mulregister");
-        case '/':
-            return drv.builder->CreateFDiv(L, R, "addregister");
-        case '<':
-            L = drv.builder->CreateFCmpULT(L, R, "cmptmp");
-            return drv.builder->CreateUIToFP(L, Type::getDoubleTy(*drv.context), "booltmp");
-        case '>':
-            L = drv.builder->CreateFCmpUGT(L, R, "cmptmp");
-            return drv.builder->CreateUIToFP(L, Type::getDoubleTy(*drv.context), "booltmp");
-        default:
-            return LogErrorV("Operatore binario non supportato");
+            case Operator::PLUS:
+                return drv.builder->CreateFAdd(L, R, "addregister");
+            case Operator::MINUS:
+                return drv.builder->CreateFSub(L, R, "subregister");
+            case Operator::STAR:
+                return drv.builder->CreateFMul(L, R, "mulregister");
+            case Operator::SLASH:
+                return drv.builder->CreateFDiv(L, R, "addregister");
+            case Operator::LESS_THAN:
+                L = drv.builder->CreateFCmpULT(L, R, "cmptmp");
+                return drv.builder->CreateUIToFP(L, llvm::Type::getDoubleTy(*drv.context), "booltmp");
+            case Operator::LESS_EQUAL:
+                L = drv.builder->CreateFCmpULE(L, R, "cmptemp");
+                return drv.builder->CreateUIToFP(L, llvm::Type::getDoubleTy(*drv.context), "booltmp");
+            case Operator::GREATER_THAN:
+                L = drv.builder->CreateFCmpUGT(L, R, "cmptmp");
+                return drv.builder->CreateUIToFP(L, llvm::Type::getDoubleTy(*drv.context), "booltmp");
+            case Operator::GREATER_EQUAL:
+                L = drv.builder->CreateFCmpUGE(L, R, "cmptmp");
+                return drv.builder->CreateUIToFP(L, llvm::Type::getDoubleTy(*drv.context), "booltmp");
+            case Operator::EQUAL:
+                L = drv.builder->CreateFCmpUEQ(L, R, "cmptmp");
+                return drv.builder->CreateUIToFP(L, llvm::Type::getDoubleTy(*drv.context), "booltmp");
+            case Operator::NOT_EQUAL:
+                L = drv.builder->CreateFCmpUNE(L, R, "cmptmp");
+                return drv.builder->CreateUIToFP(L, llvm::Type::getDoubleTy(*drv.context), "booltmp");
+            case Operator::COMPOUND:
+                return R;
+            default:
+                return LogErrorV("Operatore binario non supportato");
         }
     }
-};
+}
+
+UnaryExprAST::UnaryExprAST(const Operator& op, ExprAST* operand) :
+    op(op), operand(operand) {}
+
+Value* UnaryExprAST::codegen(driver& drv)
+{
+    Value* exprV = operand->codegen(drv);
+
+    switch (op) {
+        case Operator::MINUS:
+            return drv.builder->CreateFNeg(exprV, "negreg");
+        default:
+            return LogErrorV("Operatore unario non supportato");
+    }
+}
 
 /********************* Call Expression Tree ***********************/
-CallExprAST::CallExprAST(std::string Callee, std::vector<ExprAST*> Args)
-    : Callee(Callee), Args(std::move(Args))
+CallExprAST::CallExprAST(std::string Callee, std::vector<ExprAST*> Args) :
+    Callee(Callee), Args(std::move(Args))
 {
     top = false;
 };
@@ -208,8 +259,8 @@ Value* CallExprAST::codegen(driver& drv)
 }
 
 /************************* Prototype Tree *************************/
-PrototypeAST::PrototypeAST(std::string Name, std::vector<std::string> Args)
-    : Name(Name), Args(std::move(Args))
+PrototypeAST::PrototypeAST(std::string Name, std::vector<std::string> Args) :
+    Name(Name), Args(std::move(Args))
 {
     emit = true;
 };
@@ -256,8 +307,8 @@ Function* PrototypeAST::codegen(driver& drv)
 }
 
 /************************* Function Tree **************************/
-FunctionAST::FunctionAST(PrototypeAST* Proto, ExprAST* Body)
-    : Proto(Proto), Body(Body)
+FunctionAST::FunctionAST(PrototypeAST* Proto, ExprAST* Body) :
+    Proto(Proto), Body(Body)
 {
     if (Body == nullptr)
         external = true;

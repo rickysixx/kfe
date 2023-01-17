@@ -32,7 +32,7 @@
 #include <variant>
 #include <vector>
 
-using namespace llvm;
+#include "operator.hh"
 
 // Dichiarazione del prototipo yylex per Flex
 // Flex va proprio a cercare YY_DECL perché
@@ -46,10 +46,10 @@ class driver
 {
   public:
     driver();
-    LLVMContext* context;
-    Module* module;
-    IRBuilder<>* builder;
-    std::map<std::string, Value*> NamedValues;
+    llvm::LLVMContext* context;
+    llvm::Module* module;
+    llvm::IRBuilder<>* builder;
+    std::map<std::string, llvm::Value*> NamedValues;
     static inline int Cnt = 0; // Contatore incrementale, per identificare registri SSA
     RootAST* root;             // A fine parsing "punta" alla radice dell'AST
     int parse(const std::string& f);
@@ -70,7 +70,7 @@ class RootAST
   public:
     virtual ~RootAST(){};
     virtual void visit(){};
-    virtual Value* codegen(driver& drv) { return nullptr; };
+    virtual llvm::Value* codegen(driver& drv) { return nullptr; };
 };
 
 // Classe che rappresenta la sequenza di statement
@@ -83,7 +83,7 @@ class SeqAST : public RootAST
   public:
     SeqAST(RootAST* first, RootAST* continuation);
     void visit() override;
-    Value* codegen(driver& drv) override;
+    llvm::Value* codegen(driver& drv) override;
 };
 
 /// ExprAST - Classe base per tutti i nodi espressione
@@ -107,7 +107,7 @@ class NumberExprAST : public ExprAST
   public:
     NumberExprAST(double Val);
     void visit() override;
-    Value* codegen(driver& drv) override;
+    llvm::Value* codegen(driver& drv) override;
 };
 
 /// VariableExprAST - Classe per la rappresentazione di riferimenti a variabili
@@ -120,21 +120,33 @@ class VariableExprAST : public ExprAST
     VariableExprAST(std::string& Name);
     const std::string& getName() const;
     void visit() override;
-    Value* codegen(driver& drv) override;
+    llvm::Value* codegen(driver& drv) override;
 };
 
 /// BinaryExprAST - Classe per la rappresentazione di operatori binary
 class BinaryExprAST : public ExprAST
 {
   private:
-    char Op;
+    Operator Op;
     ExprAST* LHS;
     ExprAST* RHS;
 
   public:
-    BinaryExprAST(char Op, ExprAST* LHS, ExprAST* RHS);
+    BinaryExprAST(Operator Op, ExprAST* LHS, ExprAST* RHS);
     void visit() override;
-    Value* codegen(driver& drv) override;
+    llvm::Value* codegen(driver& drv) override;
+};
+
+class UnaryExprAST : public ExprAST
+{
+  private:
+    Operator op;
+    ExprAST* operand;
+
+  public:
+    UnaryExprAST(const Operator&, ExprAST*);
+
+    llvm::Value* codegen(driver&) override;
 };
 
 /// CallExprAST - Classe per la rappresentazione di chiamate di funzione
@@ -147,7 +159,7 @@ class CallExprAST : public ExprAST
   public:
     CallExprAST(std::string Callee, std::vector<ExprAST*> Args);
     void visit() override;
-    Value* codegen(driver& drv) override;
+    llvm::Value* codegen(driver& drv) override;
 };
 
 /// PrototypeAST - Classe per la rappresentazione dei prototipi di funzione
@@ -165,7 +177,7 @@ class PrototypeAST : public RootAST
     const std::string& getName() const;
     const std::vector<std::string>& getArgs() const;
     void visit() override;
-    Function* codegen(driver& drv) override;
+    llvm::Function* codegen(driver& drv) override;
     void noemit();
     bool emitp();
 };
@@ -181,7 +193,7 @@ class FunctionAST : public RootAST
   public:
     FunctionAST(PrototypeAST* Proto, ExprAST* Body);
     void visit() override;
-    Function* codegen(driver& drv) override;
+    llvm::Function* codegen(driver& drv) override;
 };
 
 class IfExprNode : public ExprAST
@@ -196,7 +208,7 @@ class IfExprNode : public ExprAST
 
     void visit() override;
 
-    Value* codegen(driver& drv) override;
+    llvm::Value* codegen(driver& drv) override;
 };
 
 // void InitializeModule();

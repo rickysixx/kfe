@@ -1,5 +1,10 @@
 #include "driver.hh"
 #include <iostream>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Support/raw_ostream.h>
+#include <llvm/Target/TargetOptions.h>
+
+using namespace llvm;
 
 int main(int argc, char* argv[])
 {
@@ -8,25 +13,25 @@ int main(int argc, char* argv[])
     /***********************************************************************/
     /********* Inizializzazione del target (local machine) *****************/
     /***********************************************************************/
-    InitializeAllTargetInfos();
-    InitializeAllTargets();
-    InitializeAllTargetMCs();
-    InitializeAllAsmParsers();
-    InitializeAllAsmPrinters();
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmParsers();
+    llvm::InitializeAllAsmPrinters();
 
-    auto TargetTriple = sys::getDefaultTargetTriple();
+    auto TargetTriple = llvm::sys::getDefaultTargetTriple();
     drv.module->setTargetTriple(TargetTriple);
     std::string Error;
-    auto Target = TargetRegistry::lookupTarget(TargetTriple, Error);
+    auto Target = llvm::TargetRegistry::lookupTarget(TargetTriple, Error);
     if (!Target) {
-        errs() << Error;
+        llvm::errs() << Error;
         return 1;
     }
     /************************** Set-up macchina target ********************/
     auto CPU = "generic";
     auto Features = "";
     TargetOptions opt;
-    auto RM = Optional<Reloc::Model>();
+    auto RM = llvm::Optional<llvm::Reloc::Model>();
     auto TheTargetMachine =
         Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
     /************************* Configurazione del modulo *****************/

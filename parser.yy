@@ -29,6 +29,7 @@
 
 %code {
 #include "driver.hh"
+#include "operator.hh"
 }
 
 %define api.token.prefix {TOK_}
@@ -40,7 +41,11 @@
   PLUS       "+"
   STAR       "*"
   LT         "<"
+  LE         "<="
   GT         ">"
+  GE         ">="
+  EQ         "=="
+  NE         "!="
   SLASH      "/"
   LPAREN     "("
   RPAREN     ")"
@@ -50,6 +55,7 @@
   THEN       "then"
   ELSE       "else"
   FI         "fi"
+  COMPOUND   ":"
 ;
 
 %token <std::string> IDENTIFIER "id"
@@ -97,18 +103,24 @@ idseq:
                          $$ = args; }
 | "id" idseq           { $2.insert($2.begin(),$1); $$ = $2; };
 
-
-%left "<" ">";
+%left ":";
+%left "<" ">" "<=" ">=" "==" "!=";
 %left "+" "-";
 %left "*" "/";
 
 exp:
-  exp "+" exp          { $$ = new BinaryExprAST('+',$1,$3); }
-| exp "-" exp          { $$ = new BinaryExprAST('-',$1,$3); }
-| exp "*" exp          { $$ = new BinaryExprAST('*',$1,$3); }
-| exp "/" exp          { $$ = new BinaryExprAST('/',$1,$3); }
-| exp "<" exp          { $$ = new BinaryExprAST('<', $1, $3); }
-| exp ">" exp          { $$ = new BinaryExprAST('>', $1, $3); }
+  "-" exp              { $$ = new UnaryExprAST(convertStringToOperator("-"), $2); }
+| exp "+" exp          { $$ = new BinaryExprAST(convertStringToOperator("+"), $1, $3); }
+| exp "-" exp          { $$ = new BinaryExprAST(convertStringToOperator("-"), $1, $3); }
+| exp "*" exp          { $$ = new BinaryExprAST(convertStringToOperator("*"), $1, $3); }
+| exp "/" exp          { $$ = new BinaryExprAST(convertStringToOperator("/"), $1, $3); }
+| exp "<" exp          { $$ = new BinaryExprAST(convertStringToOperator("<"), $1, $3); }
+| exp "<=" exp          { $$ = new BinaryExprAST(convertStringToOperator("<="), $1, $3); }
+| exp ">" exp          { $$ = new BinaryExprAST(convertStringToOperator(">"), $1, $3); }
+| exp ">=" exp         { $$ = new BinaryExprAST(convertStringToOperator(">="), $1, $3); }
+| exp "==" exp         { $$ = new BinaryExprAST(convertStringToOperator("=="), $1, $3); }
+| exp "!=" exp         { $$ = new BinaryExprAST(convertStringToOperator("!="), $1, $3); }
+| exp ":" exp          { $$ = new BinaryExprAST(convertStringToOperator(":"), $1, $3); }
 | ifexp                { $$ = $1; }
 | idexp                { $$ = $1; }
 | "(" exp ")"          { $$ = $2; }
