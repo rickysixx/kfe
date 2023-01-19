@@ -211,6 +211,20 @@ class IfExprNode : public ExprAST
     llvm::Value* codegen(driver& drv) override;
 };
 
+class ForExprAST : public ExprAST
+{
+  private:
+    std::string varName;
+    ExprAST* start;
+    ExprAST* end;
+    ExprAST* step;
+    ExprAST* body;
+
+  public:
+    ForExprAST(const std::string&, ExprAST*, ExprAST*, ExprAST*, ExprAST*);
+    llvm::Value* codegen(driver&) override;
+};
+
 // void InitializeModule();
 
 #endif // ! DRIVER_HH

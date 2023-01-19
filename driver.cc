@@ -3,6 +3,7 @@
 #include "parser.hh"
 #include <llvm/ADT/APFloat.h>
 #include <llvm/IR/BasicBlock.h>
+#include <llvm/IR/Constant.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
@@ -101,12 +102,12 @@ void SeqAST::visit()
 llvm::Value* SeqAST::codegen(driver& drv)
 {
     if (first != nullptr) {
-        llvm::Value* f = first->codegen(drv);
+        first->codegen(drv);
     } else {
         if (continuation == nullptr)
             return nullptr;
     }
-    llvm::Value* c = continuation->codegen(drv);
+    continuation->codegen(drv);
     return nullptr;
 };
 
@@ -424,4 +425,59 @@ Value* IfExprNode::codegen(driver& drv)
     IFRES->addIncoming(elseV, elseBB);
 
     return IFRES;
+}
+
+ForExprAST::ForExprAST(const std::string& varName, ExprAST* start, ExprAST* end, ExprAST* step, ExprAST* body) :
+    varName(varName), start(start), end(end), step(step), body(body) {}
+
+Value* ForExprAST::codegen(driver& drv)
+{
+    Value* startValue = start->codegen(drv);
+
+    Function* f = drv.builder->GetInsertBlock()->getParent();
+    BasicBlock* headerBB = drv.builder->GetInsertBlock();
+    BasicBlock* loopBB = BasicBlock::Create(*drv.context, "loop", f);
+
+    drv.builder->CreateBr(loopBB);
+
+    drv.builder->SetInsertPoint(loopBB);
+
+    PHINode* variable = drv.builder->CreatePHI(Type::getDoubleTy(*drv.context), 2, varName.c_str());
+    variable->addIncoming(startValue, headerBB);
+
+    Value* oldValue = drv.NamedValues[varName];
+    drv.NamedValues[varName] = variable;
+
+    body->codegen(drv);
+
+    Value* stepVal = nullptr;
+
+    if (step != nullptr) {
+        stepVal = step->codegen(drv);
+    } else {
+        stepVal = ConstantFP::get(*drv.context, APFloat(1.0));
+    }
+
+    Value* nextVar = drv.builder->CreateFAdd(variable, stepVal, "nextvar");
+
+    Value* endCond = end->codegen(drv);
+
+    endCond = drv.builder->CreateFCmpONE(endCond, ConstantFP::get(*drv.context, APFloat(0.0)), "loopcond");
+
+    BasicBlock* loopEndBB = drv.builder->GetInsertBlock();
+    BasicBlock* afterBB = BasicBlock::Create(*drv.context, "afterloop", f);
+
+    drv.builder->CreateCondBr(endCond, loopBB, afterBB);
+
+    drv.builder->SetInsertPoint(afterBB);
+
+    variable->addIncoming(nextVar, loopEndBB);
+
+    if (oldValue != nullptr) {
+        drv.NamedValues[varName] = oldValue;
+    } else {
+        drv.NamedValues.erase(varName);
+    }
+
+    return llvm::Constant::getNullValue(Type::getDoubleTy(*drv.context));
 }

@@ -45,43 +45,48 @@ blank   [ \t]
 {blank}+   loc.step ();
 [\n]+      loc.lines (yyleng); loc.step ();
 
-"-"      return yy::parser::make_MINUS     (loc);
-"+"      return yy::parser::make_PLUS      (loc);
-"*"      return yy::parser::make_STAR      (loc);
-"/"      return yy::parser::make_SLASH     (loc);
-"=="      return yy::parser::make_EQ        (loc);
-"!="      return yy::parser::make_NE        (loc);
-"<="      return yy::parser::make_LE        (loc);
-"<"      return yy::parser::make_LT        (loc);
-">="     return yy::parser::make_GE        (loc);
-">"      return yy::parser::make_GT        (loc);
-"("      return yy::parser::make_LPAREN    (loc);
-")"      return yy::parser::make_RPAREN    (loc);
-";"      return yy::parser::make_SEMICOLON (loc);
-","      return yy::parser::make_COMMA     (loc);
-":"      return yy::parser::make_COMPOUND  (loc);
-"if"     return yy::parser::make_IF        (loc);
-"then"   return yy::parser::make_THEN      (loc);
-"else"   return yy::parser::make_ELSE      (loc);
-"fi"     return yy::parser::make_FI       (loc);
+"-"    return yy::parser::make_MINUS(loc);
+"+"    return yy::parser::make_PLUS(loc);
+"*"    return yy::parser::make_STAR(loc);
+"/"    return yy::parser::make_SLASH(loc);
+"="    return yy::parser::make_EQUAL(loc);
+"=="   return yy::parser::make_EQ(loc);
+"!="   return yy::parser::make_NE(loc);
+"<="   return yy::parser::make_LE(loc);
+"<"    return yy::parser::make_LT(loc);
+">="   return yy::parser::make_GE(loc);
+">"    return yy::parser::make_GT(loc);
+"("    return yy::parser::make_LPAREN(loc);
+")"    return yy::parser::make_RPAREN(loc);
+";"    return yy::parser::make_SEMICOLON(loc);
+","    return yy::parser::make_COMMA(loc);
+":"    return yy::parser::make_COMPOUND(loc);
+"if"   return yy::parser::make_IF(loc);
+"then" return yy::parser::make_THEN(loc);
+"else" return yy::parser::make_ELSE(loc);
+"fi"   return yy::parser::make_FI(loc);
+"for"  return yy::parser::make_FOR(loc);
+"in"   return yy::parser::make_IN(loc);
+"end"  return yy::parser::make_END(loc);
 
-{num}      {
-  errno = 0;
-  double n = strtod(yytext, NULL);
-  if (! (n!=HUGE_VAL && n!=-HUGE_VAL && errno != ERANGE))
-    throw yy::parser::syntax_error (loc, "Float value is out of range: "
-                                    + std::string(yytext));
-  return yy::parser::make_NUMBER (n, loc);
+{num} {
+    errno = 0;
+    double n = strtod(yytext, NULL);
+    if (! (n!=HUGE_VAL && n!=-HUGE_VAL && errno != ERANGE))
+        throw yy::parser::syntax_error (loc, "Float value is out of range: " + std::string(yytext));
+    return yy::parser::make_NUMBER (n, loc);
 }
+
 {id}       return check_keywords(yytext, loc);
 .          {
              throw yy::parser::syntax_error
                (loc, "invalid character: " + std::string(yytext));
 }
-<<EOF>>    return yy::parser::make_END (loc);
+<<EOF>>    return yy::parser::make_EOF(loc);
 %%
 
-yy::parser::symbol_type check_keywords(std::string lexeme, yy::location& loc)  {
+yy::parser::symbol_type check_keywords(std::string lexeme, yy::location& loc)
+{
    if (lexeme == "def") {
      return yy::parser::make_DEF(loc);
    } else if (lexeme == "extern") {
@@ -91,7 +96,7 @@ yy::parser::symbol_type check_keywords(std::string lexeme, yy::location& loc)  {
    }
 }
 
-void driver::scan_begin ()
+void driver::scan_begin()
 {
   yy_flex_debug = trace_scanning;
   if (file.empty () || file == "-")

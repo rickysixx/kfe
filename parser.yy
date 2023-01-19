@@ -1,9 +1,11 @@
-%skeleton "lalr1.cc" /* -*- C++ -*- */
-%require "3.2"
-%defines
+%language "c++"
+%skeleton "lalr1.cc" // skeleton for C++
+%require "3.8" // %header is defined in bison 3.8
+%header // generate a parser header file
+%verbose // generate an output file which explains the parser
 
 %define api.token.constructor
-%define api.location.file none
+%define api.location.file none // do not put location class in a separate file
 %define api.value.type variant
 %define parse.assert
 
@@ -17,6 +19,7 @@
   class SeqAST;
   class PrototypeAST;
   class IfExprNode;
+  class ForExprAST;
 }
 
 // The parsing context.
@@ -34,7 +37,7 @@
 
 %define api.token.prefix {TOK_}
 %token
-  END  0  "end of file"
+  EOF  0  "end of file"
   SEMICOLON  ";"
   COMMA      ","
   MINUS      "-"
@@ -46,6 +49,7 @@
   GE         ">="
   EQ         "=="
   NE         "!="
+  EQUAL      "="
   SLASH      "/"
   LPAREN     "("
   RPAREN     ")"
@@ -56,6 +60,9 @@
   ELSE       "else"
   FI         "fi"
   COMPOUND   ":"
+  FOR        "for"
+  IN         "in"
+  END        "end"
 ;
 
 %token <std::string> IDENTIFIER "id"
@@ -72,84 +79,104 @@
 %type <PrototypeAST*> proto
 %type <std::vector<std::string>> idseq
 %type <IfExprNode*> ifexp
-
-%%
-%start startsymb;
-
-startsymb:
-program             { drv.root = $1; }
-
-program:
-  %empty               { $$ = new SeqAST(nullptr,nullptr); }
-|  top ";" program     { $$ = new SeqAST($1,$3); };
-
-top:
-%empty                 { $$ = nullptr; }
-| definition           { $$ = $1; }
-| external             { $$ = $1; }
-| exp                  { $$ = $1; $1->toggle(); };
-
-definition:
-  "def" proto exp      { $$ = new FunctionAST($2,$3); $2->noemit(); };
-
-external:
-  "extern" proto       { $$ = $2; };
-
-proto:
-  "id" "(" idseq ")"   { $$ = new PrototypeAST($1,$3); };
-
-idseq:
-  %empty               { std::vector<std::string> args;
-                         $$ = args; }
-| "id" idseq           { $2.insert($2.begin(),$1); $$ = $2; };
+%type <ForExprAST*> forexpr
+%type <ExprAST*> step
 
 %left ":";
 %left "<" ">" "<=" ">=" "==" "!=";
 %left "+" "-";
 %left "*" "/";
 
-exp:
-  "-" exp              { $$ = new UnaryExprAST(convertStringToOperator("-"), $2); }
-| exp "+" exp          { $$ = new BinaryExprAST(convertStringToOperator("+"), $1, $3); }
-| exp "-" exp          { $$ = new BinaryExprAST(convertStringToOperator("-"), $1, $3); }
-| exp "*" exp          { $$ = new BinaryExprAST(convertStringToOperator("*"), $1, $3); }
-| exp "/" exp          { $$ = new BinaryExprAST(convertStringToOperator("/"), $1, $3); }
-| exp "<" exp          { $$ = new BinaryExprAST(convertStringToOperator("<"), $1, $3); }
-| exp "<=" exp          { $$ = new BinaryExprAST(convertStringToOperator("<="), $1, $3); }
-| exp ">" exp          { $$ = new BinaryExprAST(convertStringToOperator(">"), $1, $3); }
-| exp ">=" exp         { $$ = new BinaryExprAST(convertStringToOperator(">="), $1, $3); }
-| exp "==" exp         { $$ = new BinaryExprAST(convertStringToOperator("=="), $1, $3); }
-| exp "!=" exp         { $$ = new BinaryExprAST(convertStringToOperator("!="), $1, $3); }
-| exp ":" exp          { $$ = new BinaryExprAST(convertStringToOperator(":"), $1, $3); }
-| ifexp                { $$ = $1; }
-| idexp                { $$ = $1; }
-| "(" exp ")"          { $$ = $2; }
-| "number"             { $$ = new NumberExprAST($1); };
+%%
+%start startsymb;
 
-idexp:
-  "id"                 { $$ = new VariableExprAST($1); }
-| "id" "(" optexp ")"  { $$ = new CallExprAST($1,$3); };
+startsymb
+  : program { drv.root = $1; }
+;
 
-ifexp:
-  "if" exp "then" exp "else" exp "fi" { $$ = new IfExprNode($2, $4, $6); }
+program
+  : %empty          { $$ = new SeqAST(nullptr, nullptr); }
+  | top ";" program { $$ = new SeqAST($1, $3); }
 
-optexp:
-%empty                 { std::vector<ExprAST*> args;
-                         args.push_back(nullptr);
-			 $$ = args;
-                       }
-| explist              { $$ = $1; };
+top
+  : %empty     { $$ = nullptr; }
+  | definition { $$ = $1; }
+  | external   { $$ = $1; }
+  | exp        { $$ = $1; $1->toggle(); }
+;
 
-explist:
-  exp                  { std::vector<ExprAST*> args;
-                         args.push_back($1);
-			 $$ = args;
-                       }
-| exp "," explist      { $3.insert($3.begin(), $1); $$ = $3; };
+definition
+  : "def" proto exp { $$ = new FunctionAST($2, $3); 
+                      $2->noemit(); }
+;
 
+external
+  : "extern" proto { $$ = $2; }
+;
+
+proto
+  : "id" "(" idseq ")" { $$ = new PrototypeAST($1,$3); }
+;
+
+idseq
+  : %empty     { std::vector<std::string> args; $$ = args; }
+  | "id" idseq { $2.insert($2.begin(), $1); $$ = $2; }
+;
+
+exp
+  : "-" exp      { $$ = new UnaryExprAST(convertStringToOperator("-"), $2); }
+  | exp "+" exp  { $$ = new BinaryExprAST(convertStringToOperator("+"), $1, $3); }
+  | exp "-" exp  { $$ = new BinaryExprAST(convertStringToOperator("-"), $1, $3); }
+  | exp "*" exp  { $$ = new BinaryExprAST(convertStringToOperator("*"), $1, $3); }
+  | exp "/" exp  { $$ = new BinaryExprAST(convertStringToOperator("/"), $1, $3); }
+  | exp "<" exp  { $$ = new BinaryExprAST(convertStringToOperator("<"), $1, $3); }
+  | exp "<=" exp { $$ = new BinaryExprAST(convertStringToOperator("<="), $1, $3); }
+  | exp ">" exp  { $$ = new BinaryExprAST(convertStringToOperator(">"), $1, $3); }
+  | exp ">=" exp { $$ = new BinaryExprAST(convertStringToOperator(">="), $1, $3); }
+  | exp "==" exp { $$ = new BinaryExprAST(convertStringToOperator("=="), $1, $3); }
+  | exp "!=" exp { $$ = new BinaryExprAST(convertStringToOperator("!="), $1, $3); }
+  | exp ":" exp  { $$ = new BinaryExprAST(convertStringToOperator(":"), $1, $3); }
+  | ifexp        { $$ = $1; }
+  | forexpr      { $$ = $1; }
+  | idexp        { $$ = $1; }
+  | "(" exp ")"  { $$ = $2; }
+  | "number"     { $$ = new NumberExprAST($1); }
+;
+
+idexp
+  : "id"                { $$ = new VariableExprAST($1); }
+  | "id" "(" optexp ")" { $$ = new CallExprAST($1,$3); }
+;
+
+ifexp
+  : "if" exp "then" exp "else" exp "end" { $$ = new IfExprNode($2, $4, $6); }
+;
+
+forexpr:
+  "for" "id" "=" exp "," exp step "in" exp "end" { $$ = new ForExprAST($2, $4, $6, $7, $9); }
+;
+
+step
+  : %empty  { $$ = nullptr; }
+  | "," exp { $$ = $2; }
+;
+
+optexp
+  : %empty  { std::vector<ExprAST*> args; args.push_back(nullptr); $$ = args; }
+  | explist { $$ = $1; }
+;
+
+explist
+  : exp { 
+          std::vector<ExprAST*> args; 
+          args.push_back($1); 
+          $$ = args; 
+        }
+  | exp "," explist { $3.insert($3.begin(), $1); $$ = $3; }
+;
 %%
 
 void yy::parser::error(const location_type& location, const std::string& message)
 {
-  std::cerr << location << ": " << message << '\n';
+    std::cerr << location << ": " << message << '\n';
 }
