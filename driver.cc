@@ -516,6 +516,31 @@ Value* ForExprAST::codegen(driver& drv)
     return llvm::Constant::getNullValue(Type::getDoubleTy(*drv.context));
 }
 
+WhileExprAST::WhileExprAST(ExprAST* condition, ExprAST* body) :
+    condition(condition), body(body) {}
+
+Value* WhileExprAST::codegen(driver& drv)
+{
+    Function* currentFunction = drv.builder->GetInsertBlock()->getParent();
+    BasicBlock* loopBlock = BasicBlock::Create(*drv.context, "whileloop", currentFunction);
+
+    drv.builder->CreateBr(loopBlock);
+    drv.builder->SetInsertPoint(loopBlock);
+
+    body->codegen(drv);
+
+    Value* endCondition = condition->codegen(drv);
+
+    endCondition = drv.builder->CreateFCmpONE(endCondition, ConstantFP::get(*drv.context, APFloat(0.0)), "whileloopcond");
+
+    BasicBlock* afterLoopBlock = BasicBlock::Create(*drv.context, "afterwhileloop", currentFunction);
+
+    drv.builder->CreateCondBr(endCondition, loopBlock, afterLoopBlock);
+    drv.builder->SetInsertPoint(afterLoopBlock);
+
+    return ConstantFP::getNullValue(Type::getDoubleTy(*drv.context));
+}
+
 VarExprAST::VarExprAST(std::vector<std::pair<std::string, ExprAST*>> varNames, ExprAST* body) :
     varNames(varNames), body(body) {}
 

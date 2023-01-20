@@ -226,6 +226,17 @@ class ForExprAST : public ExprAST
     llvm::Value* codegen(driver&) override;
 };
 
+class WhileExprAST : public ExprAST
+{
+  private:
+    ExprAST* condition;
+    ExprAST* body;
+
+  public:
+    WhileExprAST(ExprAST*, ExprAST*);
+    llvm::Value* codegen(driver&) override;
+};
+
 class VarExprAST : public ExprAST
 {
   private:

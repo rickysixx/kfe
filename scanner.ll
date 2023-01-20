@@ -69,6 +69,7 @@ blank   [ \t]
 "in"   return yy::parser::make_IN(loc);
 "end"  return yy::parser::make_END(loc);
 "var"  return yy::parser::make_VAR(loc);
+"while" return yy::parser::make_WHILE(loc);
 
 {num} {
     errno = 0;

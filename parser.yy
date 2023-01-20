@@ -22,6 +22,7 @@
   class IfExprNode;
   class ForExprAST;
   class VarExprAST;
+  class WhileExprAST;
 }
 
 // The parsing context.
@@ -66,6 +67,7 @@
   IN         "in"
   END        "end"
   VAR        "var"
+  WHILE      "while"
 ;
 
 %token <std::string> IDENTIFIER "id"
@@ -88,6 +90,7 @@
 %type <ExprAST*> assignment
 %type <std::vector<std::pair<std::string, ExprAST*>>> varlist
 %type <std::pair<std::string, ExprAST*>> pair
+%type <WhileExprAST*> whileexpr
 
 %left ":";
 %right "=";
@@ -146,6 +149,7 @@ exp
   | exp ":" exp  { $$ = new BinaryExprAST(convertStringToOperator(":"), $1, $3); }
   | ifexp        { $$ = $1; }
   | forexpr      { $$ = $1; }
+  | whileexpr    { $$ = $1; }
   | varexpr      { $$ = $1; }
   | assignment   { $$ = $1; }
   | idexp        { $$ = $1; }
@@ -201,6 +205,10 @@ pair
 
 assignment
   : "id" "=" exp { $$ = new BinaryExprAST(convertStringToOperator("="), new VariableExprAST($1), $3); }
+;
+
+whileexpr
+  : "while" exp "in" exp "end" { $$ = new WhileExprAST($2, $4); }
 ;
 %%
 
