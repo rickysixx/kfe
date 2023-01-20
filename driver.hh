@@ -26,6 +26,7 @@
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <llvm/IR/Instructions.h>
 #include <map>
 #include <memory>
 #include <string>
@@ -49,7 +50,7 @@ class driver
     llvm::LLVMContext* context;
     llvm::Module* module;
     llvm::IRBuilder<>* builder;
-    std::map<std::string, llvm::Value*> NamedValues;
+    std::map<std::string, llvm::AllocaInst*> NamedValues;
     static inline int Cnt = 0; // Contatore incrementale, per identificare registri SSA
     RootAST* root;             // A fine parsing "punta" alla radice dell'AST
     int parse(const std::string& f);
@@ -222,6 +223,17 @@ class ForExprAST : public ExprAST
 
   public:
     ForExprAST(const std::string&, ExprAST*, ExprAST*, ExprAST*, ExprAST*);
+    llvm::Value* codegen(driver&) override;
+};
+
+class VarExprAST : public ExprAST
+{
+  private:
+    std::vector<std::pair<std::string, ExprAST*>> varNames;
+    ExprAST* body;
+
+  public:
+    VarExprAST(std::vector<std::pair<std::string, ExprAST*>>, ExprAST*);
     llvm::Value* codegen(driver&) override;
 };
 

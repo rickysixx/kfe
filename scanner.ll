@@ -68,6 +68,7 @@ blank   [ \t]
 "for"  return yy::parser::make_FOR(loc);
 "in"   return yy::parser::make_IN(loc);
 "end"  return yy::parser::make_END(loc);
+"var"  return yy::parser::make_VAR(loc);
 
 {num} {
     errno = 0;

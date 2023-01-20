@@ -8,7 +8,7 @@
 #include <unordered_map>
 
 static std::unordered_map<std::string, Operator> OPERATOR_TABLE = {
-    {"+", Operator::PLUS}, {"-", Operator::MINUS}, {"*", Operator::STAR}, {"/", Operator::SLASH}, {"<", Operator::LESS_THAN}, {"<=", Operator::LESS_EQUAL}, {">", Operator::GREATER_THAN}, {">=", Operator::GREATER_EQUAL}, {"==", Operator::EQUAL}, {"!=", Operator::NOT_EQUAL}, {":", Operator::COMPOUND}};
+    {"+", Operator::PLUS}, {"-", Operator::MINUS}, {"*", Operator::STAR}, {"/", Operator::SLASH}, {"<", Operator::LESS_THAN}, {"<=", Operator::LESS_EQUAL}, {">", Operator::GREATER_THAN}, {">=", Operator::GREATER_EQUAL}, {"==", Operator::EQUAL}, {"!=", Operator::NOT_EQUAL}, {":", Operator::COMPOUND}, {"=", Operator::EQ}};
 
 const Operator& convertStringToOperator(const std::string& str)
 {

@@ -15,7 +15,8 @@ enum class Operator
     GREATER_EQUAL,
     EQUAL,
     NOT_EQUAL,
-    COMPOUND
+    COMPOUND,
+    EQ
 };
 
 const Operator& convertStringToOperator(const std::string&);

@@ -12,6 +12,7 @@
 %code requires {
   #include <string>
   #include <exception>
+  #include <utility>
   class driver;
   class RootAST;
   class ExprAST;
@@ -20,6 +21,7 @@
   class PrototypeAST;
   class IfExprNode;
   class ForExprAST;
+  class VarExprAST;
 }
 
 // The parsing context.
@@ -63,6 +65,7 @@
   FOR        "for"
   IN         "in"
   END        "end"
+  VAR        "var"
 ;
 
 %token <std::string> IDENTIFIER "id"
@@ -81,8 +84,13 @@
 %type <IfExprNode*> ifexp
 %type <ForExprAST*> forexpr
 %type <ExprAST*> step
+%type <VarExprAST*> varexpr
+%type <ExprAST*> assignment
+%type <std::vector<std::pair<std::string, ExprAST*>>> varlist
+%type <std::pair<std::string, ExprAST*>> pair
 
 %left ":";
+%right "=";
 %left "<" ">" "<=" ">=" "==" "!=";
 %left "+" "-";
 %left "*" "/";
@@ -138,6 +146,8 @@ exp
   | exp ":" exp  { $$ = new BinaryExprAST(convertStringToOperator(":"), $1, $3); }
   | ifexp        { $$ = $1; }
   | forexpr      { $$ = $1; }
+  | varexpr      { $$ = $1; }
+  | assignment   { $$ = $1; }
   | idexp        { $$ = $1; }
   | "(" exp ")"  { $$ = $2; }
   | "number"     { $$ = new NumberExprAST($1); }
@@ -152,8 +162,8 @@ ifexp
   : "if" exp "then" exp "else" exp "end" { $$ = new IfExprNode($2, $4, $6); }
 ;
 
-forexpr:
-  "for" "id" "=" exp "," exp step "in" exp "end" { $$ = new ForExprAST($2, $4, $6, $7, $9); }
+forexpr
+  : "for" "id" "=" exp "," exp step "in" exp "end" { $$ = new ForExprAST($2, $4, $6, $7, $9); }
 ;
 
 step
@@ -173,6 +183,24 @@ explist
           $$ = args; 
         }
   | exp "," explist { $3.insert($3.begin(), $1); $$ = $3; }
+;
+
+varexpr
+  : "var" varlist "in" exp "end"    { $$ = new VarExprAST($2, $4); }
+;
+
+varlist
+  : pair             { std::vector<std::pair<std::string, ExprAST*>> list; list.push_back($1); $$ = list; }
+  | pair "," varlist { $3.insert($3.begin(), $1); $$ = $3; }
+;
+
+pair
+  : "id"         { $$ = std::pair($1, new NumberExprAST(0.0)); }
+  | "id" "=" exp { $$ = std::pair($1, $3); }
+;
+
+assignment
+  : "id" "=" exp { $$ = new BinaryExprAST(convertStringToOperator("="), new VariableExprAST($1), $3); }
 ;
 %%
 

@@ -7,6 +7,7 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
+#include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/InstrTypes.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Operator.h>
@@ -15,15 +16,24 @@
 #include <llvm/Support/raw_ostream.h>
 #include <memory>
 
+using llvm::AllocaInst;
 using llvm::APFloat;
 using llvm::BasicBlock;
 using llvm::ConstantFP;
 using llvm::errs;
 using llvm::Function;
 using llvm::FunctionType;
+using llvm::IRBuilder;
 using llvm::PHINode;
 using llvm::Type;
 using llvm::Value;
+
+static AllocaInst* CreateEntryBlockAlloca(const driver& drv, Function* function, const std::string& varName)
+{
+    IRBuilder<> tmpBuilder(&function->getEntryBlock(), function->getEntryBlock().begin());
+
+    return tmpBuilder.CreateAlloca(Type::getDoubleTy(*drv.context), 0, varName.c_str());
+}
 
 Value* LogErrorV(const std::string Str)
 {
@@ -135,17 +145,16 @@ const std::string& VariableExprAST::getName() const { return Name; };
 
 void VariableExprAST::visit() { std::cout << getName() << " "; };
 
-llvm::Value* VariableExprAST::codegen(driver& drv)
+Value* VariableExprAST::codegen(driver& drv)
 {
-    if (gettop()) {
-        return TopExpression(this, drv);
-    } else {
-        llvm::Value* V = drv.NamedValues[Name];
-        if (!V)
-            LogErrorV("Variabile non definita");
-        return V;
+    AllocaInst* A = drv.NamedValues[Name];
+
+    if (!A) {
+        return LogErrorV("Variabile [" + Name + "] non dichiarata.");
     }
-};
+
+    return drv.builder->CreateLoad(A->getAllocatedType(), A, Name.c_str());
+}
 
 /******************** Binary Expression Tree **********************/
 BinaryExprAST::BinaryExprAST(Operator Op, ExprAST* LHS, ExprAST* RHS) :
@@ -165,6 +174,26 @@ void BinaryExprAST::visit()
 
 llvm::Value* BinaryExprAST::codegen(driver& drv)
 {
+    if (Op == Operator::EQ) {
+        VariableExprAST* LHSE = static_cast<VariableExprAST*>(LHS);
+
+        if (!LHSE) {
+            return LogErrorV("Destination of '=' must be a variable.");
+        }
+
+        Value* Val = RHS->codegen(drv);
+
+        Value* variable = drv.NamedValues[LHSE->getName()];
+
+        if (!variable) {
+            return LogErrorV("Variabile non definita.");
+        }
+
+        drv.builder->CreateStore(Val, variable);
+
+        return Val;
+    }
+
     if (gettop()) {
         return TopExpression(this, drv);
     } else {
@@ -348,8 +377,13 @@ Function* FunctionAST::codegen(driver& drv)
 
     // Registra gli argomenti nella symbol table
     drv.NamedValues.clear();
-    for (auto& Arg : TheFunction->args())
-        drv.NamedValues[std::string(Arg.getName())] = &Arg;
+    for (auto& Arg : TheFunction->args()) {
+        AllocaInst* Alloca = CreateEntryBlockAlloca(drv, TheFunction, std::string(Arg.getName()));
+
+        drv.builder->CreateStore(&Arg, Alloca);
+
+        drv.NamedValues[std::string(Arg.getName())] = Alloca;
+    }
 
     if (Value* RetVal = Body->codegen(drv)) {
         // Termina la creazione del codice corrispondente alla funzione
@@ -432,21 +466,20 @@ ForExprAST::ForExprAST(const std::string& varName, ExprAST* start, ExprAST* end,
 
 Value* ForExprAST::codegen(driver& drv)
 {
+    Function* f = drv.builder->GetInsertBlock()->getParent();
+    AllocaInst* alloca = CreateEntryBlockAlloca(drv, f, varName);
     Value* startValue = start->codegen(drv);
 
-    Function* f = drv.builder->GetInsertBlock()->getParent();
-    BasicBlock* headerBB = drv.builder->GetInsertBlock();
+    drv.builder->CreateStore(startValue, alloca);
+
     BasicBlock* loopBB = BasicBlock::Create(*drv.context, "loop", f);
 
     drv.builder->CreateBr(loopBB);
 
     drv.builder->SetInsertPoint(loopBB);
 
-    PHINode* variable = drv.builder->CreatePHI(Type::getDoubleTy(*drv.context), 2, varName.c_str());
-    variable->addIncoming(startValue, headerBB);
-
-    Value* oldValue = drv.NamedValues[varName];
-    drv.NamedValues[varName] = variable;
+    AllocaInst* oldVal = drv.NamedValues[varName];
+    drv.NamedValues[varName] = alloca;
 
     body->codegen(drv);
 
@@ -458,26 +491,64 @@ Value* ForExprAST::codegen(driver& drv)
         stepVal = ConstantFP::get(*drv.context, APFloat(1.0));
     }
 
-    Value* nextVar = drv.builder->CreateFAdd(variable, stepVal, "nextvar");
+    Value* currentVar = drv.builder->CreateLoad(alloca->getAllocatedType(), alloca, varName);
+
+    Value* nextVar = drv.builder->CreateFAdd(currentVar, stepVal, "nextvar");
+
+    drv.builder->CreateStore(nextVar, alloca);
 
     Value* endCond = end->codegen(drv);
 
     endCond = drv.builder->CreateFCmpONE(endCond, ConstantFP::get(*drv.context, APFloat(0.0)), "loopcond");
 
-    BasicBlock* loopEndBB = drv.builder->GetInsertBlock();
     BasicBlock* afterBB = BasicBlock::Create(*drv.context, "afterloop", f);
 
     drv.builder->CreateCondBr(endCond, loopBB, afterBB);
 
     drv.builder->SetInsertPoint(afterBB);
 
-    variable->addIncoming(nextVar, loopEndBB);
-
-    if (oldValue != nullptr) {
-        drv.NamedValues[varName] = oldValue;
+    if (oldVal != nullptr) {
+        drv.NamedValues[varName] = oldVal;
     } else {
         drv.NamedValues.erase(varName);
     }
 
     return llvm::Constant::getNullValue(Type::getDoubleTy(*drv.context));
+}
+
+VarExprAST::VarExprAST(std::vector<std::pair<std::string, ExprAST*>> varNames, ExprAST* body) :
+    varNames(varNames), body(body) {}
+
+Value* VarExprAST::codegen(driver& drv)
+{
+    std::vector<AllocaInst*> oldBindings;
+    Function* function = drv.builder->GetInsertBlock()->getParent();
+
+    for (unsigned int i = 0, e = varNames.size(); i != e; i++) {
+        const std::string& varName = varNames[i].first;
+        ExprAST* Init = varNames[i].second;
+
+        Value* InitVal;
+
+        if (Init) {
+            InitVal = Init->codegen(drv);
+        } else {
+            InitVal = ConstantFP::get(*drv.context, APFloat(0.0));
+        }
+
+        AllocaInst* Alloca = CreateEntryBlockAlloca(drv, function, varName);
+        drv.builder->CreateStore(InitVal, Alloca);
+
+        oldBindings.push_back(drv.NamedValues[varName]);
+
+        drv.NamedValues[varName] = Alloca;
+    }
+
+    Value* bodyVal = body->codegen(drv);
+
+    for (unsigned int i = 0, e = varNames.size(); i != e; i++) {
+        drv.NamedValues[varNames[i].first] = oldBindings[i];
+    }
+
+    return bodyVal;
 }
