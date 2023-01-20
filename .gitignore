@@ -1,6 +1,6 @@
 .vscode
 *.o
-kfe
-parser.cc
-parser.hh
-scanner.cc
+bin/kfe
+src/parser.cc
+src/parser.hh
+src/scanner.cc

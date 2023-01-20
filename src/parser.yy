@@ -2,7 +2,6 @@
 %skeleton "lalr1.cc" // skeleton for C++
 %require "3.8" // %header is defined in bison 3.8
 %header // generate a parser header file
-%verbose // generate an output file which explains the parser
 
 %define api.token.constructor
 %define api.location.file none // do not put location class in a separate file
@@ -61,7 +60,6 @@
   IF         "if"
   THEN       "then"
   ELSE       "else"
-  FI         "fi"
   COMPOUND   ":"
   FOR        "for"
   IN         "in"
@@ -93,7 +91,7 @@
 %type <WhileExprAST*> whileexpr
 
 %left ":";
-%right "=";
+%precedence "=";
 %left "<" ">" "<=" ">=" "==" "!=";
 %left "+" "-";
 %left "*" "/";

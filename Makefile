@@ -6,31 +6,31 @@ BINDIR = bin
 
 .PHONY: clean all
 
-all: kfe
+all: $(BINDIR)/kfe
 
-kfe: driver.o parser.o scanner.o kfe.o operator.o
+$(BINDIR)/kfe: $(OBJDIR)/driver.o $(OBJDIR)/parser.o $(OBJDIR)/scanner.o $(OBJDIR)/kfe.o $(OBJDIR)/operator.o
 	$(CXX) -o $@ $(CXXFLAGS) `llvm-config --cxxflags --ldflags --libs --libfiles --system-libs` $^
 
-kfe.o: kfe.cc driver.hh
-	$(CXX) -c kfe.cc $(CXXFLAGS) -I/usr/lib/llvm-14/include -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -L/usr/lib/llvm-14/lib -lLLVM-14
+$(OBJDIR)/kfe.o: $(SRCDIR)/kfe.cc $(SRCDIR)/driver.hh
+	$(CXX) -c $(SRCDIR)/kfe.cc -o $@ $(CXXFLAGS) -I/usr/lib/llvm-14/include -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -L/usr/lib/llvm-14/lib -lLLVM-14
 	
-parser.o: parser.cc
-	$(CXX) -c parser.cc $(CXXFLAGS) -I/usr/lib/llvm-14/include -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
+$(OBJDIR)/parser.o: $(SRCDIR)/parser.cc
+	$(CXX) -c $^ $(CXXFLAGS) -o $@ -I/usr/lib/llvm-14/include -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS
 	
-scanner.o: scanner.cc parser.hh
-	$(CXX) -c scanner.cc $(CXXFLAGS) -I/usr/lib/llvm-14/include -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS 
+$(OBJDIR)/scanner.o: $(SRCDIR)/scanner.cc $(SRCDIR)/parser.hh
+	$(CXX) -c $(SRCDIR)/scanner.cc -o $@ $(CXXFLAGS) -I/usr/lib/llvm-14/include -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS 
 	
-driver.o: driver.cc parser.hh driver.hh operator.cc
-	$(CXX) -c driver.cc $(CXXFLAGS) -I/usr/lib/llvm-14/include -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS 
+$(OBJDIR)/driver.o: $(SRCDIR)/driver.cc $(SRCDIR)/parser.hh $(SRCDIR)/driver.hh $(SRCDIR)/operator.cc
+	$(CXX) -c $(SRCDIR)/driver.cc -o $@ $(CXXFLAGS) -I/usr/lib/llvm-14/include -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS 
 
-operator.o: operator.cc
-	$(CXX) -c $^ $(CXXFLAGS)
+$(OBJDIR)/operator.o: $(SRCDIR)/operator.hh $(SRCDIR)/operator.cc
+	$(CXX) -c $(SRCDIR)/operator.cc -o $@ $(CXXFLAGS)
 
-parser.cc, parser.hh: parser.yy
-	bison -o parser.cc -Wempty-rule $^
+$(SRCDIR)/parser.cc, $(SRCDIR)/parser.hh: $(SRCDIR)/parser.yy
+	bison -o $(SRCDIR)/parser.cc -Wall -Werror $^
 
-scanner.cc: scanner.ll
+$(SRCDIR)/scanner.cc: $(SRCDIR)/scanner.ll
 	flex -o $@ $^
 
 clean:
-	rm -f *.o kfe scanner.cc parser.cc parser.hh
+	rm -f $(OBJDIR)/* $(BINDIR)/* $(SRCDIR)/parser.cc $(SRCDIR)/parser.hh $(SRCDIR)/scanner.cc

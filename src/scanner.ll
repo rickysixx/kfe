@@ -64,7 +64,6 @@ blank   [ \t]
 "if"   return yy::parser::make_IF(loc);
 "then" return yy::parser::make_THEN(loc);
 "else" return yy::parser::make_ELSE(loc);
-"fi"   return yy::parser::make_FI(loc);
 "for"  return yy::parser::make_FOR(loc);
 "in"   return yy::parser::make_IN(loc);
 "end"  return yy::parser::make_END(loc);
