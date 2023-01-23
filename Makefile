@@ -8,7 +8,7 @@ BINDIR = bin
 
 all: $(BINDIR)/kfe
 
-$(BINDIR)/kfe: $(OBJDIR)/driver.o $(OBJDIR)/parser.o $(OBJDIR)/scanner.o $(OBJDIR)/kfe.o $(OBJDIR)/operator.o
+$(BINDIR)/kfe: $(OBJDIR)/driver.o $(OBJDIR)/parser.o $(OBJDIR)/scanner.o $(OBJDIR)/kfe.o $(OBJDIR)/operator.o $(OBJDIR)/ast_node.o
 	$(CXX) -o $@ $(CXXFLAGS) `llvm-config --cxxflags --ldflags --libs --libfiles --system-libs` $^
 
 $(OBJDIR)/kfe.o: $(SRCDIR)/kfe.cc $(SRCDIR)/driver.hh
@@ -22,6 +22,9 @@ $(OBJDIR)/scanner.o: $(SRCDIR)/scanner.cc $(SRCDIR)/parser.hh
 	
 $(OBJDIR)/driver.o: $(SRCDIR)/driver.cc $(SRCDIR)/parser.hh $(SRCDIR)/driver.hh $(SRCDIR)/operator.cc
 	$(CXX) -c $(SRCDIR)/driver.cc -o $@ $(CXXFLAGS) -I/usr/lib/llvm-14/include -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS 
+
+$(OBJDIR)/ast_node.o: $(SRCDIR)/ast_node.cc
+	$(CXX) -c $^ -o $@ $(CXXFLAGS)
 
 $(OBJDIR)/operator.o: $(SRCDIR)/operator.hh $(SRCDIR)/operator.cc
 	$(CXX) -c $(SRCDIR)/operator.cc -o $@ $(CXXFLAGS)
