@@ -3,6 +3,7 @@
 
 #include "operator.hh"
 #include <llvm/IR/Function.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Value.h>
 
 class driver;
@@ -50,6 +51,9 @@ class NumberExprAST : public ExprAST
 
   public:
     NumberExprAST(double Val);
+
+    double getVal() const;
+
     void visit() override;
     llvm::Value* codegen(driver& drv) override;
 };
@@ -188,6 +192,28 @@ class VarExprAST : public ExprAST
 
   public:
     VarExprAST(std::vector<std::pair<std::string, ExprAST*>>, ExprAST*);
+    llvm::Value* codegen(driver&) override;
+};
+
+class ArrayInitExprAST : public ExprAST
+{
+  private:
+    std::string name;
+    unsigned int capacity;
+
+  public:
+    ArrayInitExprAST(const std::string&, unsigned int);
+    llvm::AllocaInst* codegen(driver&) override;
+};
+
+class ArrayIndexingExprAST : public ExprAST
+{
+  private:
+    std::string name;
+    ExprAST* indexExpr;
+
+  public:
+    ArrayIndexingExprAST(const std::string&, ExprAST* indexExpr);
     llvm::Value* codegen(driver&) override;
 };
 

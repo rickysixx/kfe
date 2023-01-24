@@ -1,5 +1,20 @@
 #include "ast_node.hh"
 #include "driver.hh"
+#include <llvm/ADT/APFloat.h>
+#include <llvm/ADT/APInt.h>
+#include <llvm/IR/Constant.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalValue.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/IRBuilderFolder.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IR/Value.h>
+#include <llvm/Support/Alignment.h>
+#include <stdexcept>
+#include <vector>
 
 static llvm::AllocaInst* CreateEntryBlockAlloca(const driver& drv, llvm::Function* function, const std::string& varName)
 {
@@ -42,10 +57,14 @@ SeqAST::SeqAST(RootAST* first, RootAST* continuation) :
 
 void SeqAST::visit()
 {
-    if (first != nullptr) {
+    if (first != nullptr)
+    {
         first->visit();
-    } else {
-        if (continuation == nullptr) {
+    }
+    else
+    {
+        if (continuation == nullptr)
+        {
             return;
         };
     };
@@ -55,9 +74,12 @@ void SeqAST::visit()
 
 llvm::Value* SeqAST::codegen(driver& drv)
 {
-    if (first != nullptr) {
+    if (first != nullptr)
+    {
         first->codegen(drv);
-    } else {
+    }
+    else
+    {
         if (continuation == nullptr)
             return nullptr;
     }
@@ -93,7 +115,8 @@ llvm::Value* VariableExprAST::codegen(driver& drv)
 {
     llvm::AllocaInst* A = drv.NamedValues[Name];
 
-    if (!A) {
+    if (!A)
+    {
         return LogErrorV("Variabile [" + Name + "] non dichiarata.");
     }
 
@@ -118,34 +141,69 @@ void BinaryExprAST::visit()
 
 llvm::Value* BinaryExprAST::codegen(driver& drv)
 {
-    if (Op == Operator::EQ) {
-        VariableExprAST* LHSE = static_cast<VariableExprAST*>(LHS);
+    if (Op == Operator::EQ)
+    {
+        llvm::Value* rhsValue = nullptr;
+        llvm::Value* lhsAddress = nullptr;
 
-        if (!LHSE) {
-            return LogErrorV("Destination of '=' must be a variable.");
+        if (ArrayIndexingExprAST* arrayExpr = dynamic_cast<ArrayIndexingExprAST*>(this->RHS))
+        {
+            llvm::Value* elementAddress = arrayExpr->codegen(drv);
+
+            rhsValue = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), elementAddress);
+        }
+        else
+        {
+            rhsValue = this->RHS->codegen(drv);
         }
 
-        llvm::Value* Val = RHS->codegen(drv);
-
-        llvm::Value* variable = drv.NamedValues[LHSE->getName()];
-
-        if (!variable) {
-            return LogErrorV("Variabile non definita.");
+        if (VariableExprAST* variableExpr = dynamic_cast<VariableExprAST*>(this->LHS))
+        {
+            lhsAddress = drv.NamedValues[variableExpr->getName()];
+        }
+        else if (ArrayIndexingExprAST* arrayExpr = dynamic_cast<ArrayIndexingExprAST*>(this->LHS))
+        {
+            lhsAddress = arrayExpr->codegen(drv);
         }
 
-        drv.builder->CreateStore(Val, variable);
+        if (!rhsValue)
+        {
+            throw std::runtime_error("Errore nel calcolo del right value.");
+        }
 
-        return Val;
+        if (!lhsAddress)
+        {
+            throw std::runtime_error("Errore nel calcolo dell'indirizzo del left value.");
+        }
+
+        drv.builder->CreateStore(rhsValue, lhsAddress);
+
+        return rhsValue;
     }
 
-    if (gettop()) {
+    if (gettop())
+    {
         return TopExpression(this, drv);
-    } else {
+    }
+    else
+    {
         llvm::Value* L = LHS->codegen(drv);
-        llvm::Value* R = RHS->codegen(drv);
+        llvm::Value* R = nullptr;
+
+        if (ArrayIndexingExprAST* rhsArray = dynamic_cast<ArrayIndexingExprAST*>(RHS))
+        {
+            auto* gep = rhsArray->codegen(drv);
+            R = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), gep);
+        }
+        else
+        {
+            R = RHS->codegen(drv);
+        }
+
         if (!L || !R)
             return nullptr;
-        switch (Op) {
+        switch (Op)
+        {
             case Operator::PLUS:
                 return drv.builder->CreateFAdd(L, R, "addregister");
             case Operator::MINUS:
@@ -187,7 +245,8 @@ llvm::Value* UnaryExprAST::codegen(driver& drv)
 {
     llvm::Value* exprV = operand->codegen(drv);
 
-    switch (op) {
+    switch (op)
+    {
         case Operator::MINUS:
             return drv.builder->CreateFNeg(exprV, "negreg");
         default:
@@ -204,7 +263,8 @@ CallExprAST::CallExprAST(std::string Callee, std::vector<ExprAST*> Args) :
 void CallExprAST::visit()
 {
     std::cout << Callee << "( ";
-    for (ExprAST* arg : Args) {
+    for (ExprAST* arg : Args)
+    {
         arg->visit();
     };
     std::cout << ')';
@@ -212,9 +272,12 @@ void CallExprAST::visit()
 
 llvm::Value* CallExprAST::codegen(driver& drv)
 {
-    if (gettop()) {
+    if (gettop())
+    {
         return TopExpression(this, drv);
-    } else {
+    }
+    else
+    {
         // Cerchiamo la funzione nell'ambiente globale
         llvm::Function* CalleeF = drv.module->getFunction(Callee);
         if (!CalleeF)
@@ -223,7 +286,8 @@ llvm::Value* CallExprAST::codegen(driver& drv)
         if (CalleeF->arg_size() != Args.size())
             return LogErrorV("Numero di argomenti non corretto");
         std::vector<llvm::Value*> ArgsV;
-        for (auto arg : Args) {
+        for (auto arg : Args)
+        {
             ArgsV.push_back(arg->codegen(drv));
             if (!ArgsV.back())
                 return nullptr;
@@ -245,7 +309,8 @@ const std::vector<std::string>& PrototypeAST::getArgs() const { return Args; };
 void PrototypeAST::visit()
 {
     std::cout << "extern " << getName() << "( ";
-    for (auto it = getArgs().begin(); it != getArgs().end(); ++it) {
+    for (auto it = getArgs().begin(); it != getArgs().end(); ++it)
+    {
         std::cout << *it << ' ';
     };
     std::cout << ')';
@@ -271,8 +336,9 @@ llvm::Function* PrototypeAST::codegen(driver& drv)
     for (auto& Arg : F->args())
         Arg.setName(Args[Idx++]);
 
-    if (emitp()) { // emitp() restituisce true se e solo se il prototipo è
-                   // definito extern
+    if (emitp())
+    { // emitp() restituisce true se e solo se il prototipo è
+      // definito extern
         F->print(llvm::errs());
         fprintf(stderr, "\n");
     };
@@ -293,7 +359,8 @@ FunctionAST::FunctionAST(PrototypeAST* Proto, ExprAST* Body) :
 void FunctionAST::visit()
 {
     std::cout << Proto->getName() << "( ";
-    for (auto it = Proto->getArgs().begin(); it != Proto->getArgs().end(); ++it) {
+    for (auto it = Proto->getArgs().begin(); it != Proto->getArgs().end(); ++it)
+    {
         std::cout << *it << ' ';
     };
     std::cout << ')';
@@ -306,7 +373,8 @@ llvm::Function* FunctionAST::codegen(driver& drv)
     std::string name = Proto->getName();
     llvm::Function* TheFunction = drv.module->getFunction(name);
     // E se non esiste prova a definirla
-    if (TheFunction) {
+    if (TheFunction)
+    {
         LogErrorV("Funzione " + name + " già definita");
         return nullptr;
     }
@@ -321,7 +389,8 @@ llvm::Function* FunctionAST::codegen(driver& drv)
 
     // Registra gli argomenti nella symbol table
     drv.NamedValues.clear();
-    for (auto& Arg : TheFunction->args()) {
+    for (auto& Arg : TheFunction->args())
+    {
         llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(drv, TheFunction, std::string(Arg.getName()));
 
         drv.builder->CreateStore(&Arg, Alloca);
@@ -329,7 +398,8 @@ llvm::Function* FunctionAST::codegen(driver& drv)
         drv.NamedValues[std::string(Arg.getName())] = Alloca;
     }
 
-    if (llvm::Value* RetVal = Body->codegen(drv)) {
+    if (llvm::Value* RetVal = Body->codegen(drv))
+    {
         // Termina la creazione del codice corrispondente alla funzione
         drv.builder->CreateRet(RetVal);
 
@@ -429,9 +499,12 @@ llvm::Value* ForExprAST::codegen(driver& drv)
 
     llvm::Value* stepVal = nullptr;
 
-    if (step != nullptr) {
+    if (step != nullptr)
+    {
         stepVal = step->codegen(drv);
-    } else {
+    }
+    else
+    {
         stepVal = llvm::ConstantFP::get(*drv.context, llvm::APFloat(1.0));
     }
 
@@ -451,9 +524,12 @@ llvm::Value* ForExprAST::codegen(driver& drv)
 
     drv.builder->SetInsertPoint(afterBB);
 
-    if (oldVal != nullptr) {
+    if (oldVal != nullptr)
+    {
         drv.NamedValues[varName] = oldVal;
-    } else {
+    }
+    else
+    {
         drv.NamedValues.erase(varName);
     }
 
@@ -493,31 +569,108 @@ llvm::Value* VarExprAST::codegen(driver& drv)
     std::vector<llvm::AllocaInst*> oldBindings;
     llvm::Function* function = drv.builder->GetInsertBlock()->getParent();
 
-    for (unsigned int i = 0, e = varNames.size(); i != e; i++) {
+    for (unsigned int i = 0, e = varNames.size(); i != e; i++)
+    {
         const std::string& varName = varNames[i].first;
-        ExprAST* Init = varNames[i].second;
+        ExprAST* varInitialValueExpr = varNames[i].second;
+        llvm::Value* initialValue = nullptr;
+        llvm::AllocaInst* allocaInstr = nullptr;
 
-        llvm::Value* InitVal;
+        if (varInitialValueExpr == nullptr)
+        {
+            initialValue = llvm::ConstantFP::get(llvm::Type::getDoubleTy(*drv.context), 0.0);
+        }
+        else if (ArrayInitExprAST* arrayInitExpr = dynamic_cast<ArrayInitExprAST*>(varInitialValueExpr))
+        {
+            allocaInstr = arrayInitExpr->codegen(drv);
 
-        if (Init) {
-            InitVal = Init->codegen(drv);
-        } else {
-            InitVal = llvm::ConstantFP::get(*drv.context, llvm::APFloat(0.0));
+            oldBindings.push_back(drv.NamedValues[varName]);
+
+            drv.NamedValues[varName] = allocaInstr;
+        }
+        else
+        {
+            initialValue = varInitialValueExpr->codegen(drv);
+            allocaInstr = CreateEntryBlockAlloca(drv, function, varName);
+
+            drv.builder->CreateStore(initialValue, allocaInstr);
         }
 
-        llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(drv, function, varName);
-        drv.builder->CreateStore(InitVal, Alloca);
+        auto* oldValue = drv.NamedValues[varName];
 
-        oldBindings.push_back(drv.NamedValues[varName]);
+        if (oldValue)
+        {
+            oldBindings.push_back(oldValue);
+        }
 
-        drv.NamedValues[varName] = Alloca;
+        drv.NamedValues[varName] = allocaInstr;
     }
 
-    llvm::Value* bodyVal = body->codegen(drv);
+    llvm::Value* bodyVal = nullptr;
 
-    for (unsigned int i = 0, e = varNames.size(); i != e; i++) {
+    if (ArrayIndexingExprAST* arrayIndexingExpr = dynamic_cast<ArrayIndexingExprAST*>(body))
+    {
+        // bodyVal is a GEP
+        auto* gep = arrayIndexingExpr->codegen(drv);
+        bodyVal = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), gep);
+    }
+    else
+    {
+        bodyVal = body->codegen(drv);
+    }
+
+    for (unsigned int i = 0, e = varNames.size(); i != e; i++)
+    {
         drv.NamedValues[varNames[i].first] = oldBindings[i];
     }
 
     return bodyVal;
+}
+
+double NumberExprAST::getVal() const
+{
+    return this->Val;
+}
+
+ArrayInitExprAST::ArrayInitExprAST(const std::string& name, unsigned int capacity) :
+    name(name), capacity(capacity) {}
+
+llvm::AllocaInst* ArrayInitExprAST::codegen(driver& drv)
+{
+    auto* arrayType = llvm::ArrayType::get(llvm::Type::getDoubleTy(*drv.context), this->capacity);
+    // auto* currentFunction = drv.builder->GetInsertBlock()->getParent();
+    //  llvm::IRBuilder<> tmpBuilder(&currentFunction->getEntryBlock(), currentFunction->getEntryBlock().begin());
+    auto* allocaInstr = drv.builder->CreateAlloca(arrayType, nullptr, this->name); // passing nullptr as array size because it is already in arrayType
+
+    // allocaInstr->setAlignment(llvm::Align(16)); // TODO sta roba serve a qualcosa?
+
+    // initialize array with all zero
+    drv.builder->CreateMemSet(allocaInstr, llvm::ConstantInt::get(llvm::Type::getInt8Ty(*drv.context), 0), this->capacity * sizeof(double), allocaInstr->getAlign());
+
+    return allocaInstr;
+}
+
+ArrayIndexingExprAST::ArrayIndexingExprAST(const std::string& name, ExprAST* indexExpr) :
+    name(name), indexExpr(indexExpr) {}
+
+llvm::Value* ArrayIndexingExprAST::codegen(driver& drv)
+{
+    auto* allocaInstr = drv.NamedValues.at(this->name);
+
+    if (!allocaInstr)
+    {
+        return LogErrorV("Accesso ad un array non dichiarato");
+    }
+
+    llvm::Value* indexExprResultAsDouble = indexExpr->codegen(drv);
+    llvm::Value* indexExprResultAsUInt = drv.builder->CreateFPToUI(indexExprResultAsDouble, llvm::Type::getInt32Ty(*drv.context));
+    llvm::Value* indexExprAs64Bit = drv.builder->CreateZExt(indexExprResultAsUInt, llvm::Type::getInt64Ty(*drv.context));
+
+    std::vector<llvm::Value*> indexes = {
+        llvm::ConstantInt::get(llvm::Type::getInt64Ty(*drv.context), 0),
+        indexExprAs64Bit};
+
+    auto* gep = drv.builder->CreateInBoundsGEP(allocaInstr->getAllocatedType(), allocaInstr, indexes);
+
+    return gep;
 }

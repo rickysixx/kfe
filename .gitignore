@@ -1,6 +1,7 @@
 .vscode
 *.o
 bin/kfe
+kaleidoscope-examples/array/array
 src/parser.cc
 src/parser.hh
 src/scanner.cc

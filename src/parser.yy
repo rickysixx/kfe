@@ -22,6 +22,7 @@
   class ForExprAST;
   class VarExprAST;
   class WhileExprAST;
+  class ArrayIndexingExprAST;
 }
 
 // The parsing context.
@@ -55,6 +56,8 @@
   SLASH      "/"
   LPAREN     "("
   RPAREN     ")"
+  LSQUARE    "["
+  RSQUARE    "]"
   EXTERN     "extern"
   DEF        "def"
   IF         "if"
@@ -89,6 +92,7 @@
 %type <std::vector<std::pair<std::string, ExprAST*>>> varlist
 %type <std::pair<std::string, ExprAST*>> pair
 %type <WhileExprAST*> whileexpr
+%type <ArrayIndexingExprAST*> arrayindexexpr
 
 %left ":";
 %precedence "=";
@@ -151,6 +155,7 @@ exp
   | varexpr      { $$ = $1; }
   | assignment   { $$ = $1; }
   | idexp        { $$ = $1; }
+  | arrayindexexpr { $$ = $1; }
   | "(" exp ")"  { $$ = $2; }
   | "number"     { $$ = new NumberExprAST($1); }
 ;
@@ -197,17 +202,22 @@ varlist
 ;
 
 pair
-  : "id"         { $$ = std::pair($1, new NumberExprAST(0.0)); }
-  | "id" "=" exp { $$ = std::pair($1, $3); }
+  : "id"                  { $$ = std::pair($1, new NumberExprAST(0.0)); }
+  | "id" "=" exp          { $$ = std::pair($1, $3); }
+  | "id" "[" "number" "]" { $$ = std::pair($1, new ArrayInitExprAST($1, static_cast<unsigned int>($3))); }
 ;
 
 assignment
   : "id" "=" exp { $$ = new BinaryExprAST(convertStringToOperator("="), new VariableExprAST($1), $3); }
+  | arrayindexexpr "=" exp { $$ = new BinaryExprAST(convertStringToOperator("="), $1, $3); }
 ;
 
 whileexpr
   : "while" exp "in" exp "end" { $$ = new WhileExprAST($2, $4); }
 ;
+
+arrayindexexpr
+  : "id" "[" exp "]" { $$ = new ArrayIndexingExprAST($1, $3); }
 %%
 
 void yy::parser::error(const location_type& location, const std::string& message)

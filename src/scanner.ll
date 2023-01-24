@@ -58,6 +58,8 @@ blank   [ \t]
 ">"    return yy::parser::make_GT(loc);
 "("    return yy::parser::make_LPAREN(loc);
 ")"    return yy::parser::make_RPAREN(loc);
+"["    return yy::parser::make_LSQUARE(loc);
+"]"    return yy::parser::make_RSQUARE(loc);
 ";"    return yy::parser::make_SEMICOLON(loc);
 ","    return yy::parser::make_COMMA(loc);
 ":"    return yy::parser::make_COMPOUND(loc);

@@ -1,0 +1,2 @@
+def simplefun()
+    2;

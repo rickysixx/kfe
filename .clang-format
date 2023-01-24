@@ -2,8 +2,10 @@ BasedOnStyle: LLVM
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterClass: true
+  AfterControlStatement: Always
   AfterEnum: true
   AfterFunction: true
+  BeforeElse: true
 BreakConstructorInitializers: AfterColon
 ColumnLimit: 0
 IndentCaseLabels: true
