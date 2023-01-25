@@ -1,8 +1,13 @@
 .vscode
 *.o
+*.ll
+*.bc
+test.cc
 bin/kfe
 kaleidoscope-examples/array/array
 kaleidoscope-examples/forexpr/forexpr
+kaleidoscope-examples/ifexpr/ifexpr
+kaleidoscope-examples/varexpr/varexpr
 src/parser.cc
 src/parser.hh
 src/scanner.cc

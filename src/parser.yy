@@ -84,7 +84,7 @@
 %type <PrototypeAST*> external
 %type <PrototypeAST*> proto
 %type <std::vector<std::string>> idseq
-%type <IfExprNode*> ifexp
+%type <IfExprNode*> ifexpr
 %type <ForExprAST*> forexpr
 %type <ExprAST*> step
 %type <VarExprAST*> varexpr
@@ -149,15 +149,15 @@ exp
   | exp "==" exp { $$ = new BinaryExprAST(convertStringToOperator("=="), $1, $3); }
   | exp "!=" exp { $$ = new BinaryExprAST(convertStringToOperator("!="), $1, $3); }
   | exp ":" exp  { $$ = new BinaryExprAST(convertStringToOperator(":"), $1, $3); }
-  | ifexp        { $$ = $1; }
-  | forexpr      { $$ = $1; }
-  | whileexpr    { $$ = $1; }
-  | varexpr      { $$ = $1; }
-  | assignment   { $$ = $1; }
-  | idexp        { $$ = $1; }
+  | ifexpr         { $$ = $1; }
+  | forexpr        { $$ = $1; }
+  | whileexpr      { $$ = $1; }
+  | varexpr        { $$ = $1; }
+  | assignment     { $$ = $1; }
+  | idexp          { $$ = $1; }
   | arrayindexexpr { $$ = $1; }
-  | "(" exp ")"  { $$ = $2; }
-  | "number"     { $$ = new NumberExprAST($1); }
+  | "(" exp ")"    { $$ = $2; }
+  | "number"       { $$ = new NumberExprAST($1); }
 ;
 
 idexp
@@ -165,8 +165,9 @@ idexp
   | "id" "(" optexp ")" { $$ = new CallExprAST($1,$3); }
 ;
 
-ifexp
-  : "if" exp "then" exp "else" exp "end" { $$ = new IfExprNode($2, $4, $6); }
+ifexpr
+  : "if" exp "then" exp "end"            { $$ = new IfExprNode($2, $4, nullptr); }
+  | "if" exp "then" exp "else" exp "end" { $$ = new IfExprNode($2, $4, $6); }
 ;
 
 forexpr
@@ -218,6 +219,7 @@ whileexpr
 
 arrayindexexpr
   : "id" "[" exp "]" { $$ = new ArrayIndexingExprAST($1, $3); }
+;
 %%
 
 void yy::parser::error(const location_type& location, const std::string& message)

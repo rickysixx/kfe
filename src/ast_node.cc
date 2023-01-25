@@ -2,6 +2,7 @@
 #include "driver.hh"
 #include <llvm/ADT/APFloat.h>
 #include <llvm/ADT/APInt.h>
+#include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constant.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -14,6 +15,8 @@
 #include <llvm/IR/Value.h>
 #include <llvm/Support/Alignment.h>
 #include <stdexcept>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 static llvm::AllocaInst* CreateEntryBlockAlloca(const driver& drv, llvm::Function* function, const std::string& varName)
@@ -148,21 +151,29 @@ llvm::Value* BinaryExprAST::codegen(driver& drv)
 
         if (ArrayIndexingExprAST* arrayExpr = dynamic_cast<ArrayIndexingExprAST*>(this->RHS))
         {
+            std::cout << "Right value is an array indexing expression." << std::endl;
+
             llvm::Value* elementAddress = arrayExpr->codegen(drv);
 
             rhsValue = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), elementAddress);
         }
         else
         {
+            std::cout << "Right value is a standard expression." << std::endl;
+
             rhsValue = this->RHS->codegen(drv);
         }
 
         if (VariableExprAST* variableExpr = dynamic_cast<VariableExprAST*>(this->LHS))
         {
+            std::cout << "Left value is a variable." << std::endl;
+
             lhsAddress = drv.NamedValues[variableExpr->getName()];
         }
         else if (ArrayIndexingExprAST* arrayExpr = dynamic_cast<ArrayIndexingExprAST*>(this->LHS))
         {
+            std::cout << "Left value is an array indexing expression." << std::endl;
+
             lhsAddress = arrayExpr->codegen(drv);
         }
 
@@ -178,6 +189,8 @@ llvm::Value* BinaryExprAST::codegen(driver& drv)
 
         drv.builder->CreateStore(rhsValue, lhsAddress);
 
+        std::cout << "Finished codegen for assignment BinaryExprAST." << std::endl;
+
         return rhsValue;
     }
 
@@ -187,16 +200,21 @@ llvm::Value* BinaryExprAST::codegen(driver& drv)
     }
     else
     {
+        std::cout << "BinaryExprAST is not an assignment." << std::endl;
+
         llvm::Value* L = LHS->codegen(drv);
         llvm::Value* R = nullptr;
 
         if (ArrayIndexingExprAST* rhsArray = dynamic_cast<ArrayIndexingExprAST*>(RHS))
         {
+            std::cout << "Right value is an array indexing expression." << std::endl;
+
             auto* gep = rhsArray->codegen(drv);
             R = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), gep);
         }
         else
         {
+            std::cout << "Right value is a standard expression." << std::endl;
             R = RHS->codegen(drv);
         }
 
@@ -243,12 +261,23 @@ UnaryExprAST::UnaryExprAST(const Operator& op, ExprAST* operand) :
 
 llvm::Value* UnaryExprAST::codegen(driver& drv)
 {
-    llvm::Value* exprV = operand->codegen(drv);
+    llvm::Value* exprValue = nullptr;
+
+    if (ArrayIndexingExprAST* arrayExpr = dynamic_cast<ArrayIndexingExprAST*>(operand))
+    {
+        auto* elementAddress = arrayExpr->codegen(drv);
+
+        exprValue = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), elementAddress);
+    }
+    else
+    {
+        exprValue = operand->codegen(drv);
+    }
 
     switch (op)
     {
         case Operator::MINUS:
-            return drv.builder->CreateFNeg(exprV, "negreg");
+            return drv.builder->CreateFNeg(exprValue, "negreg");
         default:
             return LogErrorV("Operatore unario non supportato");
     }
@@ -418,7 +447,7 @@ llvm::Function* FunctionAST::codegen(driver& drv)
 
 IfExprNode::IfExprNode(ExprAST* condition, ExprAST* thenExpr, ExprAST* elseExpr)
 {
-    this->condition = condition;
+    this->conditionExpr = condition;
     this->thenExpr = thenExpr;
     this->elseExpr = elseExpr;
 }
@@ -426,53 +455,76 @@ IfExprNode::IfExprNode(ExprAST* condition, ExprAST* thenExpr, ExprAST* elseExpr)
 void IfExprNode::visit()
 {
     std::cout << "(";
-    condition->visit();
+    conditionExpr->visit();
 
     std::cout << " then ";
 
     thenExpr->visit();
 
-    std::cout << " else ";
-    elseExpr->visit();
+    if (elseExpr)
+    {
+        std::cout << " else ";
+        elseExpr->visit();
+    }
 
     std::cout << ")";
 }
 
 llvm::Value* IfExprNode::codegen(driver& drv)
 {
-    llvm::Value* conditionRegistry = condition->codegen(drv);
+    auto* conditionValue = conditionExpr->codegen(drv);
 
-    conditionRegistry = drv.builder->CreateFCmpONE(conditionRegistry, llvm::ConstantFP::get(*drv.context, llvm::APFloat(0.0)), "iftest");
+    conditionValue = drv.builder->CreateFCmpONE(conditionValue, llvm::ConstantFP::get(*drv.context, llvm::APFloat(0.0)), "iftest");
 
-    llvm::Function* function = drv.builder->GetInsertBlock()->getParent();
-    llvm::BasicBlock* thenBB = llvm::BasicBlock::Create(*drv.context, "then", function);
-    llvm::BasicBlock* elseBB = llvm::BasicBlock::Create(*drv.context, "else");
-    llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(*drv.context, "merge");
+    auto* currentFunction = drv.builder->GetInsertBlock()->getParent();
+    auto* thenBlock = llvm::BasicBlock::Create(*drv.context, "then", currentFunction); // creates a block and adds it to the current function automatically
 
-    drv.builder->CreateCondBr(conditionRegistry, thenBB, elseBB);
+    if (elseExpr)
+    {
+        llvm::BasicBlock* elseBlock = llvm::BasicBlock::Create(*drv.context, "else");
+        llvm::BasicBlock* mergeBB = llvm::BasicBlock::Create(*drv.context, "merge");
 
-    drv.builder->SetInsertPoint(thenBB);
+        drv.builder->CreateCondBr(conditionValue, thenBlock, elseBlock);
 
-    llvm::Value* thenV = thenExpr->codegen(drv);
-    drv.builder->CreateBr(mergeBB);
+        drv.builder->SetInsertPoint(thenBlock);
 
-    thenBB = drv.builder->GetInsertBlock();
-    function->getBasicBlockList().push_back(elseBB);
-    drv.builder->SetInsertPoint(elseBB);
+        llvm::Value* thenV = thenExpr->codegen(drv);
+        drv.builder->CreateBr(mergeBB);
 
-    llvm::Value* elseV = elseExpr->codegen(drv);
-    drv.builder->CreateBr(mergeBB);
+        thenBlock = drv.builder->GetInsertBlock();
+        currentFunction->getBasicBlockList().push_back(elseBlock);
+        drv.builder->SetInsertPoint(elseBlock);
 
-    elseBB = drv.builder->GetInsertBlock();
-    function->getBasicBlockList().push_back(mergeBB);
-    drv.builder->SetInsertPoint(mergeBB);
+        llvm::Value* elseV = elseExpr->codegen(drv);
+        drv.builder->CreateBr(mergeBB);
 
-    llvm::PHINode* IFRES = drv.builder->CreatePHI(llvm::Type::getDoubleTy(*drv.context), 2, "ifres");
+        elseBlock = drv.builder->GetInsertBlock();
+        currentFunction->getBasicBlockList().push_back(mergeBB);
+        drv.builder->SetInsertPoint(mergeBB);
 
-    IFRES->addIncoming(thenV, thenBB);
-    IFRES->addIncoming(elseV, elseBB);
+        llvm::PHINode* IFRES = drv.builder->CreatePHI(llvm::Type::getDoubleTy(*drv.context), 2, "ifres");
 
-    return IFRES;
+        IFRES->addIncoming(thenV, thenBlock);
+        IFRES->addIncoming(elseV, elseBlock);
+
+        return IFRES;
+    }
+    else
+    {
+        auto* afterThenBlock = llvm::BasicBlock::Create(*drv.context, "afterThen");
+
+        drv.builder->CreateCondBr(conditionValue, thenBlock, afterThenBlock);
+
+        drv.builder->SetInsertPoint(thenBlock);
+
+        auto* thenValue = thenExpr->codegen(drv);
+        drv.builder->CreateBr(afterThenBlock);
+
+        currentFunction->getBasicBlockList().push_back(afterThenBlock);
+        drv.builder->SetInsertPoint(afterThenBlock);
+
+        return thenValue;
+    }
 }
 
 ForExprAST::ForExprAST(const std::string& varName, ExprAST* start, ExprAST* end, ExprAST* step, ExprAST* body) :
@@ -566,8 +618,8 @@ VarExprAST::VarExprAST(std::vector<std::pair<std::string, ExprAST*>> varNames, E
 
 llvm::Value* VarExprAST::codegen(driver& drv)
 {
-    std::vector<llvm::AllocaInst*> oldBindings;
-    llvm::Function* function = drv.builder->GetInsertBlock()->getParent();
+    std::unordered_map<std::string, llvm::AllocaInst*> oldSymbols; // variables defined in varexpr block hides other variables in the enclosing block with the same name
+    auto currentFunction = drv.builder->GetInsertBlock()->getParent();
 
     for (unsigned int i = 0, e = varNames.size(); i != e; i++)
     {
@@ -576,22 +628,22 @@ llvm::Value* VarExprAST::codegen(driver& drv)
         llvm::Value* initialValue = nullptr;
         llvm::AllocaInst* allocaInstr = nullptr;
 
-        if (varInitialValueExpr == nullptr)
-        {
-            initialValue = llvm::ConstantFP::get(llvm::Type::getDoubleTy(*drv.context), 0.0);
-        }
-        else if (ArrayInitExprAST* arrayInitExpr = dynamic_cast<ArrayInitExprAST*>(varInitialValueExpr))
+        if (ArrayInitExprAST* arrayInitExpr = dynamic_cast<ArrayInitExprAST*>(varInitialValueExpr))
         {
             allocaInstr = arrayInitExpr->codegen(drv);
-
-            oldBindings.push_back(drv.NamedValues[varName]);
-
-            drv.NamedValues[varName] = allocaInstr;
         }
         else
         {
-            initialValue = varInitialValueExpr->codegen(drv);
-            allocaInstr = CreateEntryBlockAlloca(drv, function, varName);
+            if (varInitialValueExpr == nullptr)
+            {
+                initialValue = llvm::ConstantFP::get(llvm::Type::getDoubleTy(*drv.context), 0.0);
+            }
+            else
+            {
+                initialValue = varInitialValueExpr->codegen(drv);
+            }
+
+            allocaInstr = CreateEntryBlockAlloca(drv, currentFunction, varName);
 
             drv.builder->CreateStore(initialValue, allocaInstr);
         }
@@ -600,7 +652,7 @@ llvm::Value* VarExprAST::codegen(driver& drv)
 
         if (oldValue)
         {
-            oldBindings.push_back(oldValue);
+            oldSymbols.insert(std::pair(varName, oldValue));
         }
 
         drv.NamedValues[varName] = allocaInstr;
@@ -619,9 +671,10 @@ llvm::Value* VarExprAST::codegen(driver& drv)
         bodyVal = body->codegen(drv);
     }
 
-    for (unsigned int i = 0, e = varNames.size(); i != e; i++)
+    // restore original values
+    for (const auto& oldSymbol : oldSymbols)
     {
-        drv.NamedValues[varNames[i].first] = oldBindings[i];
+        drv.NamedValues[oldSymbol.first] = oldSymbol.second;
     }
 
     return bodyVal;

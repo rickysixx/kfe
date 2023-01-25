@@ -4,6 +4,7 @@ BraceWrapping:
   AfterClass: true
   AfterControlStatement: Always
   AfterEnum: true
+  AfterExternBlock: true
   AfterFunction: true
   BeforeElse: true
 BreakConstructorInitializers: AfterColon

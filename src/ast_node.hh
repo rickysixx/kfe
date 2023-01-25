@@ -15,7 +15,7 @@ class RootAST
   public:
     virtual ~RootAST(){};
     virtual void visit(){};
-    virtual llvm::Value* codegen(driver&) = 0;
+    virtual llvm::Value* codegen(driver&) = 0; // pure virtual function, subclasses are forced to provide an implementation
 };
 
 // Classe che rappresenta la sequenza di statement
@@ -147,12 +147,12 @@ class FunctionAST : public RootAST
 class IfExprNode : public ExprAST
 {
   private:
-    ExprAST* condition;
+    ExprAST* conditionExpr;
     ExprAST* thenExpr;
     ExprAST* elseExpr;
 
   public:
-    IfExprNode(ExprAST* condition, ExprAST* thenExpr, ExprAST* elseExpr);
+    IfExprNode(ExprAST*, ExprAST*, ExprAST*);
 
     void visit() override;
 
