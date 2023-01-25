@@ -2,6 +2,7 @@
 *.o
 bin/kfe
 kaleidoscope-examples/array/array
+kaleidoscope-examples/forexpr/forexpr
 src/parser.cc
 src/parser.hh
 src/scanner.cc

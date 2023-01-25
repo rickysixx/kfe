@@ -33,17 +33,17 @@ blank   [ \t]
 
 %{
   // Code run each time a pattern is matched.
-  # define YY_USER_ACTION loc.columns(yyleng);
+  #define YY_USER_ACTION loc.columns(yyleng);
 %}
 %%
 %{
   // A handy shortcut to the location held by the driver.
   yy::location& loc = drv.location;
   // Code run each time yylex is called.
-  loc.step ();
+  loc.step();
 %}
-{blank}+   loc.step ();
-[\n]+      loc.lines (yyleng); loc.step ();
+{blank}+   loc.step(); // ignore blank characters
+[\n]+      loc.lines(yyleng); loc.step(); // ignore newlines
 
 "-"    return yy::parser::make_MINUS(loc);
 "+"    return yy::parser::make_PLUS(loc);
@@ -63,14 +63,6 @@ blank   [ \t]
 ";"    return yy::parser::make_SEMICOLON(loc);
 ","    return yy::parser::make_COMMA(loc);
 ":"    return yy::parser::make_COMPOUND(loc);
-"if"   return yy::parser::make_IF(loc);
-"then" return yy::parser::make_THEN(loc);
-"else" return yy::parser::make_ELSE(loc);
-"for"  return yy::parser::make_FOR(loc);
-"in"   return yy::parser::make_IN(loc);
-"end"  return yy::parser::make_END(loc);
-"var"  return yy::parser::make_VAR(loc);
-"while" return yy::parser::make_WHILE(loc);
 
 {num} {
     errno = 0;
@@ -81,22 +73,57 @@ blank   [ \t]
 }
 
 {id}       return check_keywords(yytext, loc);
-.          {
-             throw yy::parser::syntax_error
-               (loc, "invalid character: " + std::string(yytext));
-}
+.          { throw yy::parser::syntax_error(loc, "invalid character: " + std::string(yytext)); }
 <<EOF>>    return yy::parser::make_EOF(loc);
 %%
 
 yy::parser::symbol_type check_keywords(std::string lexeme, yy::location& loc)
 {
-   if (lexeme == "def") {
-     return yy::parser::make_DEF(loc);
-   } else if (lexeme == "extern") {
-     return yy::parser::make_EXTERN(loc);
-   } else {
-     return yy::parser::make_IDENTIFIER (yytext, loc);
-   }
+
+    if (lexeme == "def") 
+    {
+        return yy::parser::make_DEF(loc);
+    } 
+    else if (lexeme == "extern") 
+    {
+        return yy::parser::make_EXTERN(loc);
+    }
+    else if (lexeme == "if")
+    {
+        return yy::parser::make_IF(loc);
+    }
+    else if (lexeme == "then")
+    {
+        return yy::parser::make_THEN(loc);
+    }
+    else if (lexeme == "else")
+    {
+        return yy::parser::make_ELSE(loc);
+    }
+    else if (lexeme == "for")
+    {
+        return yy::parser::make_FOR(loc);
+    }
+    else if (lexeme == "in")
+    {
+        return yy::parser::make_IN(loc);
+    }
+    else if (lexeme == "end")
+    {
+        return yy::parser::make_END(loc);
+    }
+    else if (lexeme == "var")
+    {
+        return yy::parser::make_VAR(loc);
+    }
+    else if (lexeme == "while")
+    {
+        return yy::parser::make_WHILE(loc);
+    }
+    else
+    {
+        return yy::parser::make_IDENTIFIER(yytext, loc);
+    }
 }
 
 void driver::scan_begin()

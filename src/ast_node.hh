@@ -15,7 +15,7 @@ class RootAST
   public:
     virtual ~RootAST(){};
     virtual void visit(){};
-    virtual llvm::Value* codegen(driver& drv) { return nullptr; };
+    virtual llvm::Value* codegen(driver&) = 0;
 };
 
 // Classe che rappresenta la sequenza di statement
