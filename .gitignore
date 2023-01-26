@@ -9,6 +9,7 @@ kaleidoscope-examples/forexpr/forexpr
 kaleidoscope-examples/ifexpr/ifexpr
 kaleidoscope-examples/operators/operators
 kaleidoscope-examples/varexpr/varexpr
+kaleidoscope-examples/whileexpr/whileexpr
 src/parser.cc
 src/parser.hh
 src/scanner.cc
