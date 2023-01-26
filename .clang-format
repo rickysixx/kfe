@@ -6,9 +6,11 @@ BraceWrapping:
   AfterEnum: true
   AfterExternBlock: true
   AfterFunction: true
+  BeforeCatch: true
   BeforeElse: true
 BreakConstructorInitializers: AfterColon
 ColumnLimit: 0
+Cpp11BracedListStyle: true
 IndentCaseLabels: true
 IndentExternBlock: Indent
 IndentWidth: 4

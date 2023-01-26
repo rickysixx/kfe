@@ -1,6 +1,5 @@
 #include "operator.hh"
-#include <boost/bimap.hpp>
-#include <boost/bimap/bimap.hpp>
+#include <algorithm>
 #include <iostream>
 #include <ostream>
 #include <stdexcept>
@@ -17,12 +16,13 @@ const Operator& convertStringToOperator(const std::string& str)
 
 std::ostream& operator<<(std::ostream& out, const Operator& op)
 {
-    auto it = std::find_if(OPERATOR_TABLE.begin(), OPERATOR_TABLE.end(), [&op](const std::pair<std::string, Operator>& pair) {
+    auto it = std::find_if(OPERATOR_TABLE.begin(), OPERATOR_TABLE.end(), [&op](const auto& pair) {
         return pair.second == op;
     });
 
-    if (it == OPERATOR_TABLE.end()) {
-        throw std::invalid_argument("Operatore non valido.");
+    if (it == OPERATOR_TABLE.end())
+    {
+        throw std::invalid_argument("Invalid operator.");
     }
 
     out << it->first;
