@@ -263,11 +263,13 @@ llvm::Value* UnaryExprAST::codegen(driver& drv)
 {
     llvm::Value* exprValue = nullptr;
 
-    if (ArrayIndexingExprAST* arrayExpr = dynamic_cast<ArrayIndexingExprAST*>(operand))
+    if (ArrayIndexingExprAST* arrayExpr =
+            dynamic_cast<ArrayIndexingExprAST*>(operand))
     {
         auto* elementAddress = arrayExpr->codegen(drv);
 
-        exprValue = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), elementAddress);
+        exprValue = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context),
+                                            elementAddress);
     }
     else
     {
@@ -330,7 +332,7 @@ PrototypeAST::PrototypeAST(std::string Name, std::vector<std::string> Args) :
     Name(Name), Args(std::move(Args))
 {
     emit = true;
-};
+}
 
 const std::string& PrototypeAST::getName() const { return Name; };
 const std::vector<std::string>& PrototypeAST::getArgs() const { return Args; };
@@ -343,7 +345,7 @@ void PrototypeAST::visit()
         std::cout << *it << ' ';
     };
     std::cout << ')';
-};
+}
 
 void PrototypeAST::noemit() { emit = false; };
 
@@ -354,10 +356,8 @@ llvm::Function* PrototypeAST::codegen(driver& drv)
     // Costruisce una struttura double(double,...,double) che descrive
     // tipo di ritorno e tipo dei parametri (in Kaleidoscope solo double)
     std::vector<llvm::Type*> Doubles(Args.size(), llvm::Type::getDoubleTy(*drv.context));
-    llvm::FunctionType* FT =
-        llvm::FunctionType::get(llvm::Type::getDoubleTy(*drv.context), Doubles, false);
-    llvm::Function* F =
-        llvm::Function::Create(FT, llvm::Function::ExternalLinkage, Name, *drv.module);
+    llvm::FunctionType* FT = llvm::FunctionType::get(llvm::Type::getDoubleTy(*drv.context), Doubles, false);
+    llvm::Function* F = llvm::Function::Create(FT, llvm::Function::ExternalLinkage, Name, *drv.module);
 
     // Attribuiamo agli argomenti il nome dei parametri formali specificati dal
     // programmatore
@@ -394,7 +394,7 @@ void FunctionAST::visit()
     };
     std::cout << ')';
     Body->visit();
-};
+}
 
 llvm::Function* FunctionAST::codegen(driver& drv)
 {
@@ -688,17 +688,17 @@ double NumberExprAST::getVal() const
 ArrayInitExprAST::ArrayInitExprAST(const std::string& name, unsigned int capacity) :
     name(name), capacity(capacity) {}
 
+const std::string& ArrayInitExprAST::getName() const { return this->name; }
+
 llvm::AllocaInst* ArrayInitExprAST::codegen(driver& drv)
 {
     auto* arrayType = llvm::ArrayType::get(llvm::Type::getDoubleTy(*drv.context), this->capacity);
-    // auto* currentFunction = drv.builder->GetInsertBlock()->getParent();
-    //  llvm::IRBuilder<> tmpBuilder(&currentFunction->getEntryBlock(), currentFunction->getEntryBlock().begin());
-    auto* allocaInstr = drv.builder->CreateAlloca(arrayType, nullptr, this->name); // passing nullptr as array size because it is already in arrayType
-
-    // allocaInstr->setAlignment(llvm::Align(16)); // TODO sta roba serve a qualcosa?
+    llvm::Value* arraySize = nullptr; // null because array size is already defined in arrayType
+    auto* allocaInstr = drv.builder->CreateAlloca(arrayType, arraySize, this->name);
+    unsigned int arraySizeInBytes = sizeof(double) * this->capacity;
 
     // initialize array with all zero
-    drv.builder->CreateMemSet(allocaInstr, llvm::ConstantInt::get(llvm::Type::getInt8Ty(*drv.context), 0), this->capacity * sizeof(double), allocaInstr->getAlign());
+    drv.builder->CreateMemSet(allocaInstr, llvm::ConstantInt::get(llvm::Type::getInt8Ty(*drv.context), 0), arraySizeInBytes, allocaInstr->getAlign());
 
     return allocaInstr;
 }
@@ -712,7 +712,7 @@ llvm::Value* ArrayIndexingExprAST::codegen(driver& drv)
 
     if (!allocaInstr)
     {
-        return LogErrorV("Accesso ad un array non dichiarato");
+        throw std::runtime_error("Array [" + this->name + "] has not been defined. Cannot access to it.");
     }
 
     llvm::Value* indexExprResultAsDouble = indexExpr->codegen(drv);

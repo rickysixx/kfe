@@ -1,3 +1,5 @@
+AlignTrailingComments: false
+AllowShortBlocksOnASingleLine: Never
 BasedOnStyle: LLVM
 BreakBeforeBraces: Custom
 BraceWrapping:

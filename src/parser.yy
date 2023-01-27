@@ -22,6 +22,7 @@
   class ForExprAST;
   class VarExprAST;
   class WhileExprAST;
+  class ArrayInitExprAST;
   class ArrayIndexingExprAST;
 }
 
@@ -92,6 +93,7 @@
 %type <std::vector<std::pair<std::string, ExprAST*>>> varlist
 %type <std::pair<std::string, ExprAST*>> pair
 %type <WhileExprAST*> whileexpr
+%type <ArrayInitExprAST*> arrayinitexpr
 %type <ArrayIndexingExprAST*> arrayindexexpr
 
 %left ":";
@@ -137,18 +139,18 @@ idseq
 ;
 
 exp
-  : "-" exp      { $$ = new UnaryExprAST(convertStringToOperator("-"), $2); }
-  | exp "+" exp  { $$ = new BinaryExprAST(convertStringToOperator("+"), $1, $3); }
-  | exp "-" exp  { $$ = new BinaryExprAST(convertStringToOperator("-"), $1, $3); }
-  | exp "*" exp  { $$ = new BinaryExprAST(convertStringToOperator("*"), $1, $3); }
-  | exp "/" exp  { $$ = new BinaryExprAST(convertStringToOperator("/"), $1, $3); }
-  | exp "<" exp  { $$ = new BinaryExprAST(convertStringToOperator("<"), $1, $3); }
-  | exp "<=" exp { $$ = new BinaryExprAST(convertStringToOperator("<="), $1, $3); }
-  | exp ">" exp  { $$ = new BinaryExprAST(convertStringToOperator(">"), $1, $3); }
-  | exp ">=" exp { $$ = new BinaryExprAST(convertStringToOperator(">="), $1, $3); }
-  | exp "==" exp { $$ = new BinaryExprAST(convertStringToOperator("=="), $1, $3); }
-  | exp "!=" exp { $$ = new BinaryExprAST(convertStringToOperator("!="), $1, $3); }
-  | exp ":" exp  { $$ = new BinaryExprAST(convertStringToOperator(":"), $1, $3); }
+  : "-" exp        { $$ = new UnaryExprAST(convertStringToOperator("-"), $2); }
+  | exp "+" exp    { $$ = new BinaryExprAST(convertStringToOperator("+"), $1, $3); }
+  | exp "-" exp    { $$ = new BinaryExprAST(convertStringToOperator("-"), $1, $3); }
+  | exp "*" exp    { $$ = new BinaryExprAST(convertStringToOperator("*"), $1, $3); }
+  | exp "/" exp    { $$ = new BinaryExprAST(convertStringToOperator("/"), $1, $3); }
+  | exp "<" exp    { $$ = new BinaryExprAST(convertStringToOperator("<"), $1, $3); }
+  | exp "<=" exp   { $$ = new BinaryExprAST(convertStringToOperator("<="), $1, $3); }
+  | exp ">" exp    { $$ = new BinaryExprAST(convertStringToOperator(">"), $1, $3); }
+  | exp ">=" exp   { $$ = new BinaryExprAST(convertStringToOperator(">="), $1, $3); }
+  | exp "==" exp   { $$ = new BinaryExprAST(convertStringToOperator("=="), $1, $3); }
+  | exp "!=" exp   { $$ = new BinaryExprAST(convertStringToOperator("!="), $1, $3); }
+  | exp ":" exp    { $$ = new BinaryExprAST(convertStringToOperator(":"), $1, $3); }
   | ifexpr         { $$ = $1; }
   | forexpr        { $$ = $1; }
   | whileexpr      { $$ = $1; }
@@ -203,18 +205,22 @@ varlist
 ;
 
 pair
-  : "id"                  { $$ = std::pair($1, new NumberExprAST(0.0)); }
-  | "id" "=" exp          { $$ = std::pair($1, $3); }
-  | "id" "[" "number" "]" { $$ = std::pair($1, new ArrayInitExprAST($1, static_cast<unsigned int>($3))); }
+  : "id"          { $$ = std::pair($1, new NumberExprAST(0.0)); }
+  | "id" "=" exp  { $$ = std::pair($1, $3); }
+  | arrayinitexpr { $$ = std::pair($1->getName(), $1); }
 ;
 
 assignment
-  : "id" "=" exp { $$ = new BinaryExprAST(convertStringToOperator("="), new VariableExprAST($1), $3); }
+  : "id" "=" exp           { $$ = new BinaryExprAST(convertStringToOperator("="), new VariableExprAST($1), $3); }
   | arrayindexexpr "=" exp { $$ = new BinaryExprAST(convertStringToOperator("="), $1, $3); }
 ;
 
 whileexpr
   : "while" exp "in" exp "end" { $$ = new WhileExprAST($2, $4); }
+;
+
+arrayinitexpr
+  : "id" "[" "number" "]" { $$ = new ArrayInitExprAST($1, static_cast<unsigned int>($3)); }
 ;
 
 arrayindexexpr

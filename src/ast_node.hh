@@ -202,6 +202,8 @@ class ArrayInitExprAST : public ExprAST
     unsigned int capacity;
 
   public:
+    const std::string& getName() const;
+
     ArrayInitExprAST(const std::string&, unsigned int);
     llvm::AllocaInst* codegen(driver&) override;
 };
