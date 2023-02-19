@@ -50,15 +50,15 @@ class driver
     llvm::LLVMContext* context;
     llvm::Module* module;
     llvm::IRBuilder<>* builder;
-    std::map<std::string, llvm::AllocaInst*> NamedValues;
+    std::map<std::string, llvm::AllocaInst*> symbolTable;
     static inline int Cnt = 0; // Contatore incrementale, per identificare registri SSA
-    RootAST* root;             // A fine parsing "punta" alla radice dell'AST
+    RootAST* root; // A fine parsing "punta" alla radice dell'AST
     int parse(const std::string& f);
     std::string file;
-    bool trace_parsing;    // Abilita le tracce di debug el parser
-    void scan_begin();     // Implementata nello scanner
-    void scan_end();       // Implementata nello scanner
-    bool trace_scanning;   // Abilita le tracce di debug nello scanner
+    bool trace_parsing; // Abilita le tracce di debug el parser
+    void scan_begin(); // Implementata nello scanner
+    void scan_end(); // Implementata nello scanner
+    bool trace_scanning; // Abilita le tracce di debug nello scanner
     yy::location location; // Utillizata dallo scannar per localizzare i token
     bool ast_print;
     void codegen();

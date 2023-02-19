@@ -1,14 +1,18 @@
 #include <iostream>
 
-using namespace std;
-
-extern "C" {
-    double whileexpr(double);
+extern "C"
+{
+    double fib(double);
 }
 
 int main(int argc, char** argv)
 {
-    cout << "whileexpr(5) = " << whileexpr(5) << endl;
+    double n;
+
+    std::cout << "Inserisci il valore di n: ";
+    std::cin >> n;
+
+    std::cout << "fib(" << n << ") = " << fib(n) << std::endl;
 
     return 0;
 }

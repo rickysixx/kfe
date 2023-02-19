@@ -14,12 +14,6 @@
 # undef yywrap
 # define yywrap() 1
 
-// Pacify warnings in yy_init_buffer (observed with Flex 2.6.4)
-// and GCC 7.3.0.
-#if defined __GNUC__ && 7 <= __GNUC__
-# pragma GCC diagnostic ignored "-Wnull-dereference"
-#endif
-
 yy::parser::symbol_type check_keywords(std::string lexeme, yy::location& loc);
 %}
 
@@ -49,20 +43,20 @@ blank   [ \t]
 "+"    return yy::parser::make_PLUS(loc);
 "*"    return yy::parser::make_STAR(loc);
 "/"    return yy::parser::make_SLASH(loc);
-"="    return yy::parser::make_EQUAL(loc);
+"="    return yy::parser::make_ASSIGN(loc);
 "=="   return yy::parser::make_EQ(loc);
 "!="   return yy::parser::make_NE(loc);
-"<="   return yy::parser::make_LE(loc);
 "<"    return yy::parser::make_LT(loc);
-">="   return yy::parser::make_GE(loc);
 ">"    return yy::parser::make_GT(loc);
+"<="   return yy::parser::make_LE(loc);
+">="   return yy::parser::make_GE(loc);
 "("    return yy::parser::make_LPAREN(loc);
 ")"    return yy::parser::make_RPAREN(loc);
 "["    return yy::parser::make_LSQUARE(loc);
 "]"    return yy::parser::make_RSQUARE(loc);
 ";"    return yy::parser::make_SEMICOLON(loc);
 ","    return yy::parser::make_COMMA(loc);
-":"    return yy::parser::make_COMPOUND(loc);
+":"    return yy::parser::make_COLON(loc);
 
 {num} {
     errno = 0;
@@ -79,7 +73,6 @@ blank   [ \t]
 
 yy::parser::symbol_type check_keywords(std::string lexeme, yy::location& loc)
 {
-
     if (lexeme == "def") 
     {
         return yy::parser::make_DEF(loc);
@@ -128,13 +121,16 @@ yy::parser::symbol_type check_keywords(std::string lexeme, yy::location& loc)
 
 void driver::scan_begin()
 {
-  yy_flex_debug = trace_scanning;
-  if (file.empty () || file == "-")
-    yyin = stdin;
-  else if (!(yyin = fopen (file.c_str (), "r")))
+    yy_flex_debug = trace_scanning;
+
+    if (file.empty() || file == "-")
     {
-      std::cerr << "cannot open " << file << ": " << strerror(errno) << '\n';
-      exit (EXIT_FAILURE);
+        yyin = stdin;
+    }
+    else if (!(yyin = fopen(file.c_str(), "r")))
+    {
+        std::cerr << "cannot open " << file << ": " << strerror(errno) << '\n';
+        exit (EXIT_FAILURE);
     }
 }
 

@@ -4,7 +4,8 @@ using namespace std;
 
 extern "C"
 {
-    double fib(double, double);
+    double simpleif(double);
+    double fib(double);
 }
 
 int main(int argc, char** argv)
@@ -14,10 +15,8 @@ int main(int argc, char** argv)
     cout << "Inserisci il valore di x: ";
     cin >> x;
 
-    cout << "Inserisci il valore di y: ";
-    cin >> y;
-
-    cout << "fib(" << x << ", " << y << ") = " << fib(x, y) << endl;
+    cout << "simpleif(" << x << ") = " << simpleif(x) << endl;
+    cout << "fib(" << x << ") = " << fib(x) << endl;
 
     return 0;
 }

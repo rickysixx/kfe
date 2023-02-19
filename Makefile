@@ -32,7 +32,7 @@ $(OBJDIR)/operator.o: $(SRCDIR)/operator.hh $(SRCDIR)/operator.cc
 	$(CXX) -c $(SRCDIR)/operator.cc -o $@ $(CXXFLAGS)
 
 $(SRCDIR)/parser.cc, $(SRCDIR)/parser.hh: $(SRCDIR)/parser.yy
-	bison -o $(SRCDIR)/parser.cc -Wall -Werror $^
+	bison -o $(SRCDIR)/parser.cc -Wall -Werror -Wcounterexamples $^
 
 $(SRCDIR)/scanner.cc: $(SRCDIR)/scanner.ll
 	flex -o $@ $^

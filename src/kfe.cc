@@ -42,6 +42,7 @@ int main(int argc, char* argv[])
     /***********************************************************************/
     int i = 1;
     std::string Filename = ""; // Il default è che il codice oggetto non viene generato
+
     while (i < argc)
     {
         if (argv[i] == std::string("-p"))
@@ -61,7 +62,7 @@ int main(int argc, char* argv[])
             Filename = argv[++i] + (std::string) ".o"; // Crea codice oggetto nel file indicato
         }
         else if (!drv.parse(argv[i]))
-        {                  // Parsing e creazione dell'AST
+        { // Parsing e creazione dell'AST
             drv.codegen(); // Visita AST e generazione dell'IR (su stdout)
             if (Filename != "")
             {

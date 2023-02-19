@@ -41,19 +41,21 @@
 
 %define api.token.prefix {TOK_}
 %token
-  EOF  0  "end of file"
+  EOF  0     "end of file"
   SEMICOLON  ";"
+  COLON      ":"
   COMMA      ","
-  MINUS      "-"
   PLUS       "+"
+  MINUS      "-"
+  NEG
   STAR       "*"
   LT         "<"
-  LE         "<="
   GT         ">"
+  LE         "<="
   GE         ">="
   EQ         "=="
   NE         "!="
-  EQUAL      "="
+  ASSIGN      "="
   SLASH      "/"
   LPAREN     "("
   RPAREN     ")"
@@ -64,7 +66,6 @@
   IF         "if"
   THEN       "then"
   ELSE       "else"
-  COMPOUND   ":"
   FOR        "for"
   IN         "in"
   END        "end"
@@ -96,11 +97,12 @@
 %type <ArrayInitExprAST*> arrayinitexpr
 %type <ArrayIndexingExprAST*> arrayindexexpr
 
-%left ":";
-%precedence "=";
-%left "<" ">" "<=" ">=" "==" "!=";
-%left "+" "-";
-%left "*" "/";
+%left ":"
+%precedence "="
+%left "<" ">" "<=" ">=" "==" "!="
+%left "+" "-"
+%left "*" "/"
+%precedence NEG
 
 %%
 %start startsymb;
@@ -112,6 +114,7 @@ startsymb
 program
   : %empty          { $$ = new SeqAST(nullptr, nullptr); }
   | top ";" program { $$ = new SeqAST($1, $3); }
+;
 
 top
   : %empty     { $$ = nullptr; }
@@ -139,27 +142,27 @@ idseq
 ;
 
 exp
-  : "-" exp        { $$ = new UnaryExprAST(convertStringToOperator("-"), $2); }
-  | exp "+" exp    { $$ = new BinaryExprAST(convertStringToOperator("+"), $1, $3); }
-  | exp "-" exp    { $$ = new BinaryExprAST(convertStringToOperator("-"), $1, $3); }
-  | exp "*" exp    { $$ = new BinaryExprAST(convertStringToOperator("*"), $1, $3); }
-  | exp "/" exp    { $$ = new BinaryExprAST(convertStringToOperator("/"), $1, $3); }
-  | exp "<" exp    { $$ = new BinaryExprAST(convertStringToOperator("<"), $1, $3); }
-  | exp "<=" exp   { $$ = new BinaryExprAST(convertStringToOperator("<="), $1, $3); }
-  | exp ">" exp    { $$ = new BinaryExprAST(convertStringToOperator(">"), $1, $3); }
-  | exp ">=" exp   { $$ = new BinaryExprAST(convertStringToOperator(">="), $1, $3); }
-  | exp "==" exp   { $$ = new BinaryExprAST(convertStringToOperator("=="), $1, $3); }
-  | exp "!=" exp   { $$ = new BinaryExprAST(convertStringToOperator("!="), $1, $3); }
-  | exp ":" exp    { $$ = new BinaryExprAST(convertStringToOperator(":"), $1, $3); }
-  | ifexpr         { $$ = $1; }
-  | forexpr        { $$ = $1; }
-  | whileexpr      { $$ = $1; }
-  | varexpr        { $$ = $1; }
-  | assignment     { $$ = $1; }
-  | idexp          { $$ = $1; }
-  | arrayindexexpr { $$ = $1; }
-  | "(" exp ")"    { $$ = $2; }
-  | "number"       { $$ = new NumberExprAST($1); }
+  : "-" exp %prec NEG { $$ = new UnaryExprAST(convertStringToOperator("-"), $2); } // unary '-' must have higher precedence than the binary one
+  | exp "+" exp       { $$ = new BinaryExprAST(convertStringToOperator("+"), $1, $3); }
+  | exp "-" exp       { $$ = new BinaryExprAST(convertStringToOperator("-"), $1, $3); }
+  | exp "*" exp       { $$ = new BinaryExprAST(convertStringToOperator("*"), $1, $3); }
+  | exp "/" exp       { $$ = new BinaryExprAST(convertStringToOperator("/"), $1, $3); }
+  | exp "<" exp       { $$ = new BinaryExprAST(convertStringToOperator("<"), $1, $3); }
+  | exp "<=" exp      { $$ = new BinaryExprAST(convertStringToOperator("<="), $1, $3); }
+  | exp ">" exp       { $$ = new BinaryExprAST(convertStringToOperator(">"), $1, $3); }
+  | exp ">=" exp      { $$ = new BinaryExprAST(convertStringToOperator(">="), $1, $3); }
+  | exp "==" exp      { $$ = new BinaryExprAST(convertStringToOperator("=="), $1, $3); }
+  | exp "!=" exp      { $$ = new BinaryExprAST(convertStringToOperator("!="), $1, $3); }
+  | exp ":" exp       { $$ = new BinaryExprAST(convertStringToOperator(":"), $1, $3); }
+  | ifexpr            { $$ = $1; }
+  | forexpr           { $$ = $1; }
+  | whileexpr         { $$ = $1; }
+  | varexpr           { $$ = $1; }
+  | assignment        { $$ = $1; }
+  | idexp             { $$ = $1; }
+  | arrayindexexpr    { $$ = $1; }
+  | "(" exp ")"       { $$ = $2; }
+  | "number"          { $$ = new NumberExprAST($1); }
 ;
 
 idexp

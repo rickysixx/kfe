@@ -1,6 +1,7 @@
 #include <iostream>
 
-extern "C" {
+extern "C"
+{
     double add(double, double);
     double sub(double, double);
     double mul(double, double);
@@ -13,6 +14,7 @@ extern "C" {
     double ne(double, double);
     double neg(double);
     double testneg();
+    double testneg2();
     double compound();
 }
 
@@ -40,5 +42,8 @@ int main(int argc, char** argv)
     cout << "ne(" << x << ", " << y << ") = " << ne(x, y) << endl;
     cout << "neg(" << x << ") = " << neg(x) << endl;
     cout << "testneg() = " << testneg() << endl;
+    cout << "testneg2() = " << testneg2() << endl;
     cout << "compound() = " << compound() << endl;
+
+    return 0;
 }

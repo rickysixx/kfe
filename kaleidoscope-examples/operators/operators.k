@@ -34,5 +34,8 @@ def neg(x)
 def testneg()
     -3+2;
 
+def testneg2()
+    5+-9--1;
+
 def compound()
     3 + 2 : 5 + 1 : -9;

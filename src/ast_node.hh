@@ -13,7 +13,7 @@ class driver;
 class RootAST
 {
   public:
-    virtual ~RootAST(){};
+    virtual ~RootAST() = default;
     virtual void visit(){};
     virtual llvm::Value* codegen(driver&) = 0; // pure virtual function, subclasses are forced to provide an implementation
 };
@@ -62,7 +62,7 @@ class NumberExprAST : public ExprAST
 class VariableExprAST : public ExprAST
 {
   private:
-    std::string Name;
+    std::string varName;
 
   public:
     VariableExprAST(std::string& Name);

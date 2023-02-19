@@ -1,8 +1,11 @@
-def whileexpr(x)
-    var y in (
-            while y < x in
-                y = y + 1 
-                  : y
-            end
-    ) : y
-    end;
+def fib(n)
+  var a, b = 1, next, i = 2 in (
+    while i < n in (
+      next = a + b :
+        a = b :
+        b = next :
+        i = i + 1
+    )
+    end
+  ) : next
+  end;

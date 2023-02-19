@@ -104,26 +104,32 @@ llvm::Value* NumberExprAST::codegen(driver& drv)
 };
 
 /****************** Variable Expression TreeAST *******************/
-VariableExprAST::VariableExprAST(std::string& Name) :
-    Name(Name)
+VariableExprAST::VariableExprAST(std::string& varName) :
+    varName(varName)
 {
     top = false;
 };
 
-const std::string& VariableExprAST::getName() const { return Name; };
+const std::string& VariableExprAST::getName() const
+{
+    return varName;
+}
 
-void VariableExprAST::visit() { std::cout << getName() << " "; };
+void VariableExprAST::visit()
+{
+    std::cout << varName << " ";
+}
 
 llvm::Value* VariableExprAST::codegen(driver& drv)
 {
-    llvm::AllocaInst* A = drv.NamedValues[Name];
+    auto* alloca = drv.symbolTable[varName];
 
-    if (!A)
+    if (!alloca)
     {
-        return LogErrorV("Variabile [" + Name + "] non dichiarata.");
+        throw std::runtime_error("Accesso ad una variabile non dichiarata: " + varName);
     }
 
-    return drv.builder->CreateLoad(A->getAllocatedType(), A, Name.c_str());
+    return drv.builder->CreateLoad(alloca->getAllocatedType(), alloca, this->varName);
 }
 
 /******************** Binary Expression Tree **********************/
@@ -144,36 +150,28 @@ void BinaryExprAST::visit()
 
 llvm::Value* BinaryExprAST::codegen(driver& drv)
 {
-    if (Op == Operator::EQ)
+    if (Op == Operator::ASSIGN)
     {
         llvm::Value* rhsValue = nullptr;
         llvm::Value* lhsAddress = nullptr;
 
         if (ArrayIndexingExprAST* arrayExpr = dynamic_cast<ArrayIndexingExprAST*>(this->RHS))
         {
-            std::cout << "Right value is an array indexing expression." << std::endl;
-
             llvm::Value* elementAddress = arrayExpr->codegen(drv);
 
             rhsValue = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), elementAddress);
         }
         else
         {
-            std::cout << "Right value is a standard expression." << std::endl;
-
             rhsValue = this->RHS->codegen(drv);
         }
 
         if (VariableExprAST* variableExpr = dynamic_cast<VariableExprAST*>(this->LHS))
         {
-            std::cout << "Left value is a variable." << std::endl;
-
-            lhsAddress = drv.NamedValues[variableExpr->getName()];
+            lhsAddress = drv.symbolTable[variableExpr->getName()];
         }
         else if (ArrayIndexingExprAST* arrayExpr = dynamic_cast<ArrayIndexingExprAST*>(this->LHS))
         {
-            std::cout << "Left value is an array indexing expression." << std::endl;
-
             lhsAddress = arrayExpr->codegen(drv);
         }
 
@@ -189,8 +187,6 @@ llvm::Value* BinaryExprAST::codegen(driver& drv)
 
         drv.builder->CreateStore(rhsValue, lhsAddress);
 
-        std::cout << "Finished codegen for assignment BinaryExprAST." << std::endl;
-
         return rhsValue;
     }
 
@@ -200,21 +196,26 @@ llvm::Value* BinaryExprAST::codegen(driver& drv)
     }
     else
     {
-        std::cout << "BinaryExprAST is not an assignment." << std::endl;
-
-        llvm::Value* L = LHS->codegen(drv);
+        llvm::Value* L = nullptr;
         llvm::Value* R = nullptr;
+
+        if (ArrayIndexingExprAST* lhsArray = dynamic_cast<ArrayIndexingExprAST*>(LHS))
+        {
+            auto* gep = lhsArray->codegen(drv);
+            L = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), gep);
+        }
+        else
+        {
+            L = LHS->codegen(drv);
+        }
 
         if (ArrayIndexingExprAST* rhsArray = dynamic_cast<ArrayIndexingExprAST*>(RHS))
         {
-            std::cout << "Right value is an array indexing expression." << std::endl;
-
             auto* gep = rhsArray->codegen(drv);
             R = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), gep);
         }
         else
         {
-            std::cout << "Right value is a standard expression." << std::endl;
             R = RHS->codegen(drv);
         }
 
@@ -248,10 +249,10 @@ llvm::Value* BinaryExprAST::codegen(driver& drv)
             case Operator::NOT_EQUAL:
                 L = drv.builder->CreateFCmpUNE(L, R, "cmptmp");
                 return drv.builder->CreateUIToFP(L, llvm::Type::getDoubleTy(*drv.context), "booltmp");
-            case Operator::COMPOUND:
+            case Operator::COLON:
                 return R;
             default:
-                return LogErrorV("Operatore binario non supportato");
+                throw std::runtime_error("Binary operator not supported.");
         }
     }
 }
@@ -268,8 +269,7 @@ llvm::Value* UnaryExprAST::codegen(driver& drv)
     {
         auto* elementAddress = arrayExpr->codegen(drv);
 
-        exprValue = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context),
-                                            elementAddress);
+        exprValue = drv.builder->CreateLoad(llvm::Type::getDoubleTy(*drv.context), elementAddress);
     }
     else
     {
@@ -290,7 +290,8 @@ CallExprAST::CallExprAST(std::string Callee, std::vector<ExprAST*> Args) :
     Callee(Callee), Args(std::move(Args))
 {
     top = false;
-};
+}
+
 void CallExprAST::visit()
 {
     std::cout << Callee << "( ";
@@ -417,14 +418,14 @@ llvm::Function* FunctionAST::codegen(driver& drv)
     drv.builder->SetInsertPoint(BB);
 
     // Registra gli argomenti nella symbol table
-    drv.NamedValues.clear();
+    drv.symbolTable.clear();
     for (auto& Arg : TheFunction->args())
     {
         llvm::AllocaInst* Alloca = CreateEntryBlockAlloca(drv, TheFunction, std::string(Arg.getName()));
 
         drv.builder->CreateStore(&Arg, Alloca);
 
-        drv.NamedValues[std::string(Arg.getName())] = Alloca;
+        drv.symbolTable[std::string(Arg.getName())] = Alloca;
     }
 
     if (llvm::Value* RetVal = Body->codegen(drv))
@@ -544,8 +545,8 @@ llvm::Value* ForExprAST::codegen(driver& drv)
 
     drv.builder->SetInsertPoint(loopBB);
 
-    llvm::AllocaInst* oldVal = drv.NamedValues[varName];
-    drv.NamedValues[varName] = alloca;
+    llvm::AllocaInst* oldVal = drv.symbolTable[varName];
+    drv.symbolTable[varName] = alloca;
 
     body->codegen(drv);
 
@@ -578,11 +579,11 @@ llvm::Value* ForExprAST::codegen(driver& drv)
 
     if (oldVal != nullptr)
     {
-        drv.NamedValues[varName] = oldVal;
+        drv.symbolTable[varName] = oldVal;
     }
     else
     {
-        drv.NamedValues.erase(varName);
+        drv.symbolTable.erase(varName);
     }
 
     return llvm::Constant::getNullValue(llvm::Type::getDoubleTy(*drv.context));
@@ -648,14 +649,14 @@ llvm::Value* VarExprAST::codegen(driver& drv)
             drv.builder->CreateStore(initialValue, allocaInstr);
         }
 
-        auto* oldValue = drv.NamedValues[varName];
+        auto* oldValue = drv.symbolTable[varName];
 
         if (oldValue)
         {
             oldSymbols.insert(std::pair(varName, oldValue));
         }
 
-        drv.NamedValues[varName] = allocaInstr;
+        drv.symbolTable[varName] = allocaInstr;
     }
 
     llvm::Value* bodyVal = nullptr;
@@ -674,7 +675,7 @@ llvm::Value* VarExprAST::codegen(driver& drv)
     // restore original values
     for (const auto& oldSymbol : oldSymbols)
     {
-        drv.NamedValues[oldSymbol.first] = oldSymbol.second;
+        drv.symbolTable[oldSymbol.first] = oldSymbol.second;
     }
 
     return bodyVal;
@@ -708,7 +709,7 @@ ArrayIndexingExprAST::ArrayIndexingExprAST(const std::string& name, ExprAST* ind
 
 llvm::Value* ArrayIndexingExprAST::codegen(driver& drv)
 {
-    auto* allocaInstr = drv.NamedValues.at(this->name);
+    auto* allocaInstr = drv.symbolTable.at(this->name);
 
     if (!allocaInstr)
     {
