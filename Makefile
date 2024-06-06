@@ -8,7 +8,7 @@ BINDIR = bin
 
 .PHONY: clean all
 
-all: $(BINDIR)/kfe
+all: makedirs $(BINDIR)/kfe
 
 $(BINDIR)/kfe: $(OBJDIR)/driver.o $(OBJDIR)/parser.o $(OBJDIR)/scanner.o $(OBJDIR)/kfe.o $(OBJDIR)/operator.o $(OBJDIR)/ast_node.o
 	$(CXX) -o $@ $(LLVM_LDFLAGS) $(LLVM_LIBS) $^
@@ -36,6 +36,9 @@ $(SRCDIR)/parser.cc, $(SRCDIR)/parser.hh: $(SRCDIR)/parser.yy
 
 $(SRCDIR)/scanner.cc: $(SRCDIR)/scanner.ll
 	flex -o $@ $^
+
+makedirs:
+	mkdir -p $(OBJDIR) $(BINDIR)
 
 clean:
 	rm -f $(OBJDIR)/* $(BINDIR)/* $(SRCDIR)/parser.cc $(SRCDIR)/parser.hh $(SRCDIR)/scanner.cc
