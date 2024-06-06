@@ -493,14 +493,14 @@ llvm::Value* IfExprNode::codegen(driver& drv)
         drv.builder->CreateBr(mergeBB);
 
         thenBlock = drv.builder->GetInsertBlock();
-        currentFunction->getBasicBlockList().push_back(elseBlock);
+        currentFunction->insert(currentFunction->end(), elseBlock);
         drv.builder->SetInsertPoint(elseBlock);
 
         llvm::Value* elseV = elseExpr->codegen(drv);
         drv.builder->CreateBr(mergeBB);
 
         elseBlock = drv.builder->GetInsertBlock();
-        currentFunction->getBasicBlockList().push_back(mergeBB);
+        currentFunction->insert(currentFunction->end(), mergeBB);
         drv.builder->SetInsertPoint(mergeBB);
 
         llvm::PHINode* IFRES = drv.builder->CreatePHI(llvm::Type::getDoubleTy(*drv.context), 2, "ifres");
@@ -521,7 +521,7 @@ llvm::Value* IfExprNode::codegen(driver& drv)
         auto* thenValue = thenExpr->codegen(drv);
         drv.builder->CreateBr(afterThenBlock);
 
-        currentFunction->getBasicBlockList().push_back(afterThenBlock);
+        currentFunction->insert(currentFunction->end(), afterThenBlock);
         drv.builder->SetInsertPoint(afterThenBlock);
 
         return thenValue;
